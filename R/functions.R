@@ -40,169 +40,106 @@ visa_pdf <- function(t, mu, sigma) {
   dlnorm(t, meanlog = mu, sdlog = sigma)
 }
 
-#' Expected monetary cost for a given first ceremony date
+#' Compute scenario probabilities and costs for a given ceremony date
 #'
-#' Policy: pay booking_cost now for a ceremony at d1 months; if the visa
-#' is not granted by d1, pay resched_cost to move to a safe date d2.
+#' Three scenarios based on when the visa is granted (time g):
+#'
+#' 1. g <= d1: Visa granted in time. You pay booking_cost only.
+#' 2. d1 < g <= d1 + 12: Visa granted within the 12-month rebooking window.
+#'    You pay booking_cost + resched_cost (full flat fee).
+#' 3. g > d1 + 12: Visa not granted within rebooking window. You've already
+#'    paid the booking and the reschedule fee, and now need a new booking.
+#'    Total cost: booking_cost + resched_cost + new_booking_cost (cumulative).
 #'
 #' @param d1 First ceremony time (months after lodgement).
 #' @param mu Meanlog of processing-time log-normal.
 #' @param sigma Sdlog of processing-time log-normal.
 #' @param booking_cost First booking cost (default 400).
-#' @param resched_cost Reschedule cost (default 200).
+#' @param resched_cost Reschedule cost - full flat fee (default 200).
+#' @param new_booking_cost Cost of a completely new booking if the 12-month
+#'   rebooking window is exceeded (default = booking_cost).
 #'
-#' @return Expected monetary cost in dollars.
+#' @return A list with scenario probabilities and per-scenario total costs.
 #' @export
-expected_cost <- function(d1,
-                          mu,
-                          sigma,
-                          booking_cost = 400,
-                          resched_cost = 200) {
-  p_resched <- 1 - visa_cdf(d1, mu, sigma)
-  booking_cost + resched_cost * p_resched
-}
-
-#' Expected waiting time between grant and ceremony
-#'
-#' If visa is granted at time g:
-#' - If g <= d1: ceremony at d1, wait = d1 - g
-#' - If g > d1: ceremony at d2, wait = d2 - g
-#'
-#' @param d1 First ceremony time (months after lodgement).
-#' @param d2 Safe (late) ceremony time for rescheduled booking (months).
-#' @param mu Meanlog of processing-time log-normal.
-#' @param sigma Sdlog of processing-time log-normal.
-#'
-#' @return Expected waiting time (months).
-#' @export
-expected_wait <- function(d1,
-                          d2 = 30,
-                          mu,
-                          sigma) {
-  # For numerical integration, ensure positive bounds
-  if (d1 <= 0) stop("d1 must be > 0")
-  if (d2 <= 0) stop("d2 must be > 0")
+scenario_analysis <- function(d1,
+                              mu,
+                              sigma,
+                              booking_cost     = 400,
+                              resched_cost     = 200,
+                              new_booking_cost = NULL) {
+  if (is.null(new_booking_cost)) {
+    new_booking_cost <- booking_cost
+  }
   
-  # Integrate over grant times
-  part1 <- integrate(
-    f     = function(g) (d1 - g) * visa_pdf(g, mu, sigma),
-    lower = 0,
-    upper = d1
-  )$value
+  p_on_time   <- visa_cdf(d1, mu, sigma)
+  p_resched   <- visa_cdf(d1 + 12, mu, sigma) - visa_cdf(d1, mu, sigma)
+  p_new_book  <- 1 - visa_cdf(d1 + 12, mu, sigma)
   
-  part2 <- integrate(
-    f     = function(g) (d2 - g) * visa_pdf(g, mu, sigma),
-    lower = d1,
-    upper = Inf
-  )$value
+  cost_on_time  <- booking_cost
+  cost_resched  <- booking_cost + resched_cost
+  # Cumulative: you already paid booking + reschedule, now add new booking
+  cost_new_book <- booking_cost + resched_cost + new_booking_cost
   
-  part1 + part2
-}
-
-#' Combined loss function: dollars + lambda * waiting time
-#'
-#' @param d1 First ceremony time (months after lodgement).
-#' @param mu Meanlog of processing-time log-normal.
-#' @param sigma Sdlog of processing-time log-normal.
-#' @param lambda Dollar value per month of waiting (preference weight).
-#' @param d2 Safe (late) ceremony time (months).
-#' @param booking_cost First booking cost.
-#' @param resched_cost Reschedule cost.
-#'
-#' @return Scalar loss value for optimisation.
-#' @export
-loss_function <- function(d1,
-                          mu,
-                          sigma,
-                          lambda       = 50,
-                          d2           = 30,
-                          booking_cost = 400,
-                          resched_cost = 200) {
-  ecost <- expected_cost(
-    d1           = d1,
-    mu           = mu,
-    sigma        = sigma,
-    booking_cost = booking_cost,
-    resched_cost = resched_cost
+  list(
+    p_on_time      = p_on_time,
+    p_resched      = p_resched,
+    p_new_book     = p_new_book,
+    cost_on_time   = cost_on_time,
+    cost_resched   = cost_resched,
+    cost_new_book  = cost_new_book
   )
-  
-  ewait <- expected_wait(
-    d1 = d1, d2 = d2,
-    mu = mu, sigma = sigma
-  )
-  
-  ecost + lambda * ewait
 }
 
 #' Find optimal ceremony time (months after lodgement)
 #'
-#' Minimises loss_function() over a search range.
+#' Uses a simple rule: the user picks a target probability of the visa
+#' being granted in time. We find the d1 where P(g <= d1) = target_prob.
+#' This is just the quantile of the log-normal distribution.
 #'
 #' @param mu Meanlog of processing-time log-normal.
 #' @param sigma Sdlog of processing-time log-normal.
-#' @param lambda Dollar value per month of waiting.
-#' @param d2 Safe rescheduled ceremony date (months).
-#' @param lower Lower bound of search interval for d1.
-#' @param upper Upper bound of search interval for d1.
+#' @param target_prob Target probability of visa being granted by ceremony
+#'   date (between 0 and 1). Higher = safer but longer wait.
 #'
-#' @return A list with elements: d1_opt, loss_opt.
+#' @return Numeric: months after lodgement for the ceremony.
 #' @export
-find_optimal_d1 <- function(mu,
-                            sigma,
-                            lambda = 50,
-                            d2     = 30,
-                            lower  = 6,
-                            upper  = 30) {
-  opt <- optimize(
-    f     = function(d1) loss_function(
-      d1     = d1,
-      mu     = mu,
-      sigma  = sigma,
-      lambda = lambda,
-      d2     = d2
-    ),
-    lower = lower,
-    upper = upper
-  )
-  
-  list(
-    d1_opt  = opt$minimum,
-    loss_opt = opt$objective
-  )
+find_optimal_d1 <- function(mu, sigma, target_prob = 0.75) {
+  stopifnot(target_prob > 0, target_prob < 1)
+  qlnorm(target_prob, meanlog = mu, sdlog = sigma)
 }
 
-#' Create a grid of metrics over candidate first ceremony dates
+#' Create a grid of scenario metrics over candidate first ceremony dates
 #'
-#' Useful for plotting.
+#' Useful for plotting. Shows per-scenario probabilities and fixed costs
+#' at each candidate d1.
 #'
 #' @param mu Meanlog of processing-time log-normal.
 #' @param sigma Sdlog of processing-time log-normal.
-#' @param lambda Dollar value per month of waiting.
-#' @param d2 Safe rescheduled ceremony date (months).
 #' @param d1_seq Numeric vector of candidate d1 values (months).
+#' @param booking_cost First booking cost.
+#' @param resched_cost Reschedule cost (full flat fee).
+#' @param new_booking_cost Cost of new booking if window exceeded. NULL = booking_cost.
 #'
-#' @return A tibble with columns: d1, p_resched, expected_cost,
-#'   expected_wait, loss.
+#' @return A tibble with columns: d1, p_on_time, p_resched, p_new_booking,
+#'   cost_on_time, cost_resched, cost_new_booking.
 #' @export
 metrics_grid <- function(mu,
                          sigma,
-                         lambda = 50,
-                         d2     = 30,
-                         d1_seq = seq(6, 30, by = 0.5)) {
+                         d1_seq           = seq(6, 30, by = 0.5),
+                         booking_cost     = 400,
+                         resched_cost     = 200,
+                         new_booking_cost = NULL) {
+  if (is.null(new_booking_cost)) {
+    new_booking_cost <- booking_cost
+  }
+  
   tibble(d1 = d1_seq) %>%
     mutate(
-      p_resched     = 1 - visa_cdf(d1, mu, sigma),
-      expected_cost = map_dbl(
-        d1,
-        ~ expected_cost(.x, mu = mu, sigma = sigma)
-      ),
-      expected_wait = map_dbl(
-        d1,
-        ~ expected_wait(.x, d2 = d2, mu = mu, sigma = sigma)
-      ),
-      loss          = map_dbl(
-        d1,
-        ~ loss_function(.x, mu = mu, sigma = sigma, lambda = lambda, d2 = d2)
-      )
+      p_on_time     = visa_cdf(d1, mu, sigma),
+      p_resched     = visa_cdf(d1 + 12, mu, sigma) - visa_cdf(d1, mu, sigma),
+      p_new_booking = 1 - visa_cdf(d1 + 12, mu, sigma),
+      cost_on_time     = booking_cost,
+      cost_resched     = booking_cost + resched_cost,
+      cost_new_booking = booking_cost + resched_cost + new_booking_cost
     )
 }
