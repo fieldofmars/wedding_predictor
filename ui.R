@@ -59,7 +59,11 @@ shinyUI(
                  "original booking is lost and you need a new booking."),
         
         hr(),
-        h4("How soon do you want to get married?"),
+        h4("When do you want to get married?"),
+        
+        helpText("Use the slider OR the date picker — they stay in sync.",
+                 "The slider controls your risk tolerance; the date picker",
+                 "lets you explore a specific date."),
         
         sliderInput(
           inputId = "impatience",
@@ -70,9 +74,15 @@ shinyUI(
           step    = 1
         ),
         
-        helpText("This controls how much risk you're willing to accept.",
-                 "Lower = book earlier (higher chance of needing to reschedule).",
-                 "Higher = book later (more likely the visa is granted in time)."),
+        dateInput(
+          inputId = "ceremony_date_pick",
+          label   = "Or pick a ceremony date",
+          value   = Sys.Date() + 365
+        ),
+        
+        helpText(
+          tags$em("Changing the slider updates the date. Changing the date updates the slider.")
+        ),
         
         hr(),
         
@@ -94,8 +104,10 @@ shinyUI(
           ## ── Results tab ──────────────────────────────────
           tabPanel(
             "Results",
-            h3("Recommended ceremony plan"),
-            verbatimTextOutput("summary_text"),
+            h3("Your selected ceremony date"),
+            uiOutput("risk_assessment"),
+            
+            hr(),
             
             h3("Scenario probabilities by ceremony date"),
             plotOutput("tradeoff_plot", height = "400px"),

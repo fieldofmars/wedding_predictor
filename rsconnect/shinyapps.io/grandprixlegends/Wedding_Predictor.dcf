@@ -5,7 +5,7 @@ account: grandprixlegends
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 16657556
-bundleId: 11572480
+bundleId: 11572533
 url: https://grandprixlegends.shinyapps.io/Wedding_Predictor/
 version: 1
 asMultiple: FALSE

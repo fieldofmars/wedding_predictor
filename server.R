@@ -5,6 +5,14 @@ library(tidyverse)
 
 shinyServer(function(input, output, session) {
   
+  # ── Sync flag to prevent infinite loops ─────────────────
+  # When one input programmatically updates the other, we set
+
+  # this flag so the observer for the *other* input knows to
+  # skip its update cycle.
+  
+  sync_source <- reactiveVal("none")  # "slider", "date", or "none"
+  
   # ── Reactives ───────────────────────────────────────────
   
   dist_params <- reactive({
@@ -12,6 +20,78 @@ shinyServer(function(input, output, session) {
                                  q90 = input$q90)
   })
   
+  # Months between lodgement and a given date
+  months_between <- function(from_date, to_date) {
+    as.numeric(difftime(to_date, from_date, units = "days")) / 30.4375
+  }
+  
+  # The "active" ceremony date in months after lodgement.
+  # This is the single source of truth — both the slider and
+
+  # the date picker feed into it.
+  ceremony_months <- reactive({
+    months_between(input$lodgement_date, input$ceremony_date_pick)
+  })
+  
+  # Confidence level implied by the current ceremony date
+  implied_confidence <- reactive({
+    params <- dist_params()
+    m <- ceremony_months()
+    if (m <= 0) return(0.5)
+    visa_cdf(m, params$mu, params$sigma)
+  })
+  
+  # Map confidence back to impatience (inverse of the forward mapping)
+  confidence_to_impatience <- function(conf) {
+    # target_prob = 0.45 + (impatience / 10) * 0.50
+    # impatience  = (target_prob - 0.45) / 0.05
+    imp <- (conf - 0.45) / 0.05
+    imp <- max(1, min(10, round(imp)))
+    as.integer(imp)
+  }
+  
+  # Map impatience to confidence (forward mapping)
+  impatience_to_confidence <- function(imp) {
+    0.45 + (imp / 10) * 0.50
+  }
+  
+  # ── Bidirectional sync: slider → date ───────────────────
+  observeEvent(input$impatience, {
+    if (sync_source() == "date") {
+      sync_source("none")
+      return()
+    }
+    
+    params <- dist_params()
+    target_prob <- impatience_to_confidence(input$impatience)
+    d1 <- find_optimal_d1(params$mu, params$sigma, target_prob)
+    
+    months_int <- round(d1)
+    new_date <- seq(
+      from       = input$lodgement_date,
+      by         = "1 month",
+      length.out = months_int + 1
+    )[months_int + 1]
+    
+    sync_source("slider")
+    updateDateInput(session, "ceremony_date_pick", value = new_date)
+  })
+  
+  # ── Bidirectional sync: date → slider ───────────────────
+  observeEvent(input$ceremony_date_pick, {
+    if (sync_source() == "slider") {
+      sync_source("none")
+      return()
+    }
+    
+    conf <- implied_confidence()
+    imp  <- confidence_to_impatience(conf)
+    
+    sync_source("date")
+    updateSliderInput(session, "impatience", value = imp)
+  })
+  
+  # ── Summary data (uses the ceremony date picker as truth) ─
   summary_data <- reactive({
     params <- dist_params()
     mu     <- params$mu
@@ -20,13 +100,10 @@ shinyServer(function(input, output, session) {
     booking_cost <- input$booking_cost
     resched_cost <- input$resched_cost
     
-    target_prob <- 0.45 + (input$impatience / 10) * 0.50
+    d1_opt <- ceremony_months()
+    if (d1_opt <= 0) d1_opt <- 1
     
-    d1_opt <- find_optimal_d1(
-      mu          = mu,
-      sigma       = sigma,
-      target_prob = target_prob
-    )
+    target_prob <- visa_cdf(d1_opt, mu, sigma)
     
     scenarios <- scenario_analysis(
       d1           = d1_opt,
@@ -36,13 +113,7 @@ shinyServer(function(input, output, session) {
       resched_cost = resched_cost
     )
     
-    lodgement <- input$lodgement_date
-    months_to_add <- round(d1_opt)
-    ceremony_date <- seq(
-      from       = lodgement,
-      by         = "1 month",
-      length.out = months_to_add + 1
-    )[months_to_add + 1]
+    ceremony_date <- input$ceremony_date_pick
     
     list(
       mu            = mu,
@@ -56,44 +127,117 @@ shinyServer(function(input, output, session) {
     )
   })
   
-  # ── Results tab outputs ─────────────────────────────────
-  
-  output$summary_text <- renderPrint({
+  # ── Risk assessment panel ───────────────────────────────
+  output$risk_assessment <- renderUI({
     s  <- summary_data()
     sc <- s$scenarios
     
-    cat("Target confidence level:",
-        sprintf("%.0f%%", 100 * s$target_prob),
-        "(based on impatience setting)\n\n")
+    d1 <- s$d1_opt
+    conf <- s$target_prob
     
-    cat("Recommended first ceremony:",
-        round(s$d1_opt, 1), "months after lodgement\n")
-    cat("Recommended ceremony date:",
-        format(s$ceremony_date, "%Y-%m-%d"), "\n\n")
+    # Risk level label and colour
+    risk <- if (conf >= 0.90) {
+      list(label = "LOW RISK", colour = "#27ae60", icon = "✅",
+           desc = "Very likely the visa will be granted before this date.")
+    } else if (conf >= 0.75) {
+      list(label = "MODERATE RISK", colour = "#2980b9", icon = "👍",
+           desc = "Good chance the visa arrives in time, small chance of rescheduling.")
+    } else if (conf >= 0.60) {
+      list(label = "ELEVATED RISK", colour = "#f39c12", icon = "⚠️",
+           desc = "Decent chance you'll need to reschedule.")
+    } else if (conf >= 0.45) {
+      list(label = "HIGH RISK", colour = "#e67e22", icon = "🔶",
+           desc = "Roughly coin-flip odds. Significant chance of extra costs.")
+    } else {
+      list(label = "VERY HIGH RISK", colour = "#e74c3c", icon = "🔴",
+           desc = "More likely than not you'll need to reschedule or rebook.")
+    }
     
-    cat("=== What could happen ===\n\n")
+    expected_cost <- sc$p_on_time * sc$cost_on_time +
+      sc$p_resched * sc$cost_resched +
+      sc$p_new_book * sc$cost_new_book
     
-    cat(sprintf("1. Visa granted in time (%s chance)\n",
-                sprintf("%.1f%%", 100 * sc$p_on_time)))
-    cat(sprintf("   You pay: $%s (booking only)\n\n",
-                formatC(sc$cost_on_time, format = "f", digits = 0, big.mark = ",")))
-    
-    cat(sprintf("2. Need to reschedule within 12 months (%s chance)\n",
-                sprintf("%.1f%%", 100 * sc$p_resched)))
-    cat(sprintf("   You pay: $%s (booking) + $%s (reschedule fee) = $%s\n\n",
-                formatC(s$booking_cost, format = "f", digits = 0, big.mark = ","),
-                formatC(s$resched_cost, format = "f", digits = 0, big.mark = ","),
-                formatC(sc$cost_resched, format = "f", digits = 0, big.mark = ",")))
-    
-    cat(sprintf("3. 12-month window expires, new booking needed (%s chance)\n",
-                sprintf("%.1f%%", 100 * sc$p_new_book)))
-    cat(sprintf("   You pay: $%s (booking) + $%s (reschedule fee) + $%s (new booking) = $%s\n",
-                formatC(s$booking_cost, format = "f", digits = 0, big.mark = ","),
-                formatC(s$resched_cost, format = "f", digits = 0, big.mark = ","),
-                formatC(s$booking_cost, format = "f", digits = 0, big.mark = ","),
-                formatC(sc$cost_new_book, format = "f", digits = 0, big.mark = ",")))
+    tags$div(
+      style = "margin-bottom: 20px;",
+      
+      # Risk banner
+      tags$div(
+        style = paste0(
+          "background: ", risk$colour, "; color: white; padding: 16px 20px; ",
+          "border-radius: 8px; margin-bottom: 16px; font-size: 16px;"
+        ),
+        tags$span(style = "font-size: 24px; margin-right: 10px;", risk$icon),
+        tags$strong(risk$label),
+        tags$span(
+          style = "margin-left: 16px;",
+          sprintf("%.1f%% chance visa arrives in time", 100 * conf)
+        )
+      ),
+      
+      # Details card
+      tags$div(
+        style = "background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 20px;",
+        
+        tags$p(style = "font-size: 15px; margin-bottom: 12px;",
+               tags$strong("Ceremony date: "),
+               format(s$ceremony_date, "%A, %d %B %Y"),
+               tags$span(style = "color: #666; margin-left: 8px;",
+                         sprintf("(%.1f months after lodgement)", d1))),
+        
+        tags$p(style = "font-size: 14px; color: #555; margin-bottom: 16px;",
+               risk$desc),
+        
+        # Scenario table
+        tags$table(
+          style = "width: 100%; border-collapse: collapse; font-size: 14px;",
+          tags$thead(
+            tags$tr(
+              style = "border-bottom: 2px solid #dee2e6;",
+              tags$th(style = "text-align: left; padding: 8px;", "Scenario"),
+              tags$th(style = "text-align: right; padding: 8px;", "Chance"),
+              tags$th(style = "text-align: right; padding: 8px;", "Total cost")
+            )
+          ),
+          tags$tbody(
+            tags$tr(
+              style = "border-bottom: 1px solid #eee;",
+              tags$td(style = "padding: 8px;", "✅ Visa in time"),
+              tags$td(style = "text-align: right; padding: 8px; font-weight: bold; color: #27ae60;",
+                      sprintf("%.1f%%", 100 * sc$p_on_time)),
+              tags$td(style = "text-align: right; padding: 8px;",
+                      sprintf("$%s", formatC(sc$cost_on_time, format = "f", digits = 0, big.mark = ",")))
+            ),
+            tags$tr(
+              style = "border-bottom: 1px solid #eee;",
+              tags$td(style = "padding: 8px;", "🔄 Reschedule within 12 months"),
+              tags$td(style = "text-align: right; padding: 8px; font-weight: bold; color: #f39c12;",
+                      sprintf("%.1f%%", 100 * sc$p_resched)),
+              tags$td(style = "text-align: right; padding: 8px;",
+                      sprintf("$%s", formatC(sc$cost_resched, format = "f", digits = 0, big.mark = ",")))
+            ),
+            tags$tr(
+              tags$td(style = "padding: 8px;", "❌ Window expired, rebook"),
+              tags$td(style = "text-align: right; padding: 8px; font-weight: bold; color: #e74c3c;",
+                      sprintf("%.1f%%", 100 * sc$p_new_book)),
+              tags$td(style = "text-align: right; padding: 8px;",
+                      sprintf("$%s", formatC(sc$cost_new_book, format = "f", digits = 0, big.mark = ",")))
+            )
+          ),
+          tags$tfoot(
+            tags$tr(
+              style = "border-top: 2px solid #dee2e6; font-weight: bold;",
+              tags$td(style = "padding: 8px;", "Expected cost"),
+              tags$td(style = "text-align: right; padding: 8px;", ""),
+              tags$td(style = "text-align: right; padding: 8px;",
+                      sprintf("$%s", formatC(expected_cost, format = "f", digits = 0, big.mark = ",")))
+            )
+          )
+        )
+      )
+    )
   })
   
+  # ── Tradeoff plot ───────────────────────────────────────
   output$tradeoff_plot <- renderPlot({
     params <- dist_params()
     mu     <- params$mu
@@ -146,12 +290,12 @@ shinyServer(function(input, output, session) {
       geom_vline(xintercept = s$d1_opt, linetype = "dashed", linewidth = 0.8,
                  colour = "black") +
       annotate("text", x = s$d1_opt, y = 1.02,
-               label = paste0("Recommended: ", round(s$d1_opt, 1), " months"),
+               label = paste0("Your date: ", round(s$d1_opt, 1), " months"),
                hjust = -0.05, size = 4, fontface = "bold") +
       scale_y_continuous(labels = scales::percent_format(), limits = c(0, 1.05)) +
       scale_fill_manual(values = c("#2ecc71", "#f39c12", "#e74c3c")) +
       labs(
-        x     = "First ceremony date (months after lodgement)",
+        x     = "Ceremony date (months after lodgement)",
         y     = "Probability",
         fill  = "Scenario (and total cost)",
         title = "How ceremony timing affects your chances and costs",
@@ -193,7 +337,7 @@ shinyServer(function(input, output, session) {
         x        = "Months after lodgement",
         y        = "Cumulative probability of visa granted",
         title    = "Visa processing time distribution",
-        subtitle = "Red = ceremony date | Orange = 12-month rebooking window end"
+        subtitle = "Red = your ceremony date | Orange = 12-month rebooking window end"
       ) +
       theme_minimal(base_size = 14)
   })
@@ -254,28 +398,31 @@ shinyServer(function(input, output, session) {
   output$working_impatience <- renderPrint({
     s <- summary_data()
     
-    cat("Impatience slider value:", input$impatience, "/ 10\n\n")
+    cat("Your ceremony date:", format(s$ceremony_date, "%Y-%m-%d"), "\n")
+    cat(sprintf("Months after lodgement: %.1f\n", s$d1_opt))
+    cat(sprintf("Implied confidence: %.1f%%\n\n", 100 * s$target_prob))
+    
+    imp <- confidence_to_impatience(s$target_prob)
+    cat(sprintf("Equivalent impatience level: %d / 10\n\n", imp))
     
     cat("Mapping formula:\n")
     cat("  target_prob = 0.45 + (impatience / 10) × 0.50\n\n")
     
-    cat("Substituting:\n")
-    cat(sprintf("  target_prob = 0.45 + (%d / 10) × 0.50\n", input$impatience))
-    cat(sprintf("              = 0.45 + %.2f × 0.50\n", input$impatience / 10))
-    cat(sprintf("              = 0.45 + %.2f\n", (input$impatience / 10) * 0.50))
-    cat(sprintf("              = %.2f\n\n", s$target_prob))
-    
-    cat(sprintf("Interpretation: you want a %.0f%% chance that the visa\n",
-                100 * s$target_prob))
-    cat("is granted BEFORE the ceremony date.\n\n")
+    cat("Inverse (date → impatience):\n")
+    cat("  confidence  = F(d₁)  [CDF at ceremony months]\n")
+    cat("  impatience  = round((confidence - 0.45) / 0.05)\n")
+    cat("  impatience  = clamp(result, 1, 10)\n\n")
     
     cat("Full mapping table:\n")
-    cat("  Impatience  →  Target probability\n")
-    cat("  ──────────     ──────────────────\n")
+    cat("  Impatience  →  Confidence  →  Ceremony (months)\n")
+    cat("  ──────────     ──────────     ─────────────────\n")
+    params <- dist_params()
     for (i in 1:10) {
       p <- 0.45 + (i / 10) * 0.50
-      marker <- if (i == input$impatience) "  ◀ you" else ""
-      cat(sprintf("  %2d            →  %.0f%%%s\n", i, 100 * p, marker))
+      d <- find_optimal_d1(params$mu, params$sigma, p)
+      marker <- if (i == imp) "  ◀ closest" else ""
+      cat(sprintf("  %2d            →  %5.1f%%       →  %5.1f months%s\n",
+                  i, 100 * p, d, marker))
     }
   })
   
@@ -283,30 +430,26 @@ shinyServer(function(input, output, session) {
   output$working_optimal <- renderPrint({
     s <- summary_data()
     
-    cat("We need d₁ such that P(T ≤ d₁) = target_prob\n\n")
+    cat("Your selected ceremony date:", format(s$ceremony_date, "%Y-%m-%d"), "\n")
+    cat(sprintf("This is d₁ = %.4f months after lodgement.\n\n", s$d1_opt))
     
-    cat("This is the quantile function of the log-normal:\n")
-    cat("  d₁ = exp(μ + σ × Φ⁻¹(target_prob))\n\n")
+    cat("The confidence level for this date:\n")
+    cat(sprintf("  P(T ≤ d₁) = P(T ≤ %.4f)\n", s$d1_opt))
+    cat(sprintf("            = F(%.4f)\n", s$d1_opt))
+    cat(sprintf("            = Φ( (ln(%.4f) - %.6f) / %.6f )\n",
+                s$d1_opt, s$mu, s$sigma))
+    cat(sprintf("            = Φ( (%.6f - %.6f) / %.6f )\n",
+                log(s$d1_opt), s$mu, s$sigma))
+    cat(sprintf("            = Φ( %.6f )\n",
+                (log(s$d1_opt) - s$mu) / s$sigma))
+    cat(sprintf("            = %.6f\n", s$target_prob))
+    cat(sprintf("            = %.1f%%\n\n", 100 * s$target_prob))
     
-    cat("Substituting:\n")
-    cat(sprintf("  d₁ = exp(%.6f + %.6f × Φ⁻¹(%.4f))\n",
-                s$mu, s$sigma, s$target_prob))
-    cat(sprintf("     = exp(%.6f + %.6f × %.6f)\n",
-                s$mu, s$sigma, qnorm(s$target_prob)))
-    cat(sprintf("     = exp(%.6f + %.6f)\n",
-                s$mu, s$sigma * qnorm(s$target_prob)))
-    cat(sprintf("     = exp(%.6f)\n",
-                s$mu + s$sigma * qnorm(s$target_prob)))
-    cat(sprintf("     = %.4f months\n\n", s$d1_opt))
-    
-    cat(sprintf("Rounded: ~%.1f months after lodgement\n", s$d1_opt))
-    cat(sprintf("Calendar date: %s\n\n", format(s$ceremony_date, "%Y-%m-%d")))
-    
-    cat("Verification:\n")
-    cat(sprintf("  P(T ≤ %.4f) = %.6f  ✓ (should be %.4f)\n",
-                s$d1_opt,
-                visa_cdf(s$d1_opt, s$mu, s$sigma),
-                s$target_prob))
+    cat("Interpretation:\n")
+    cat(sprintf("  There is a %.1f%% chance the visa will be granted\n",
+                100 * s$target_prob))
+    cat(sprintf("  within %.1f months of lodgement (i.e. by %s).\n",
+                s$d1_opt, format(s$ceremony_date, "%Y-%m-%d")))
   })
   
   ## Step 4: Scenario probabilities
@@ -447,7 +590,13 @@ shinyServer(function(input, output, session) {
       
       tags$p(tags$strong("Impatience mapping")),
       tags$p("target_prob = 0.45 + (impatience / 10) × 0.50"),
-      tags$p("Range: impatience 1 → 50%  ...  impatience 10 → 95%")
+      tags$p("Range: impatience 1 → 50%  ...  impatience 10 → 95%"),
+      
+      tags$hr(),
+      
+      tags$p(tags$strong("Bidirectional sync")),
+      tags$p("Slider → Date:  d₁ = Q(target_prob), then convert months to calendar date"),
+      tags$p("Date → Slider:  confidence = F(d₁), then impatience = round((confidence − 0.45) / 0.05)")
     )
   })
 })
