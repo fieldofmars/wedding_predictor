@@ -87,14 +87,60 @@ shinyUI(
       ),
       
       mainPanel(
-        h3("Recommended ceremony plan"),
-        verbatimTextOutput("summary_text"),
-        
-        h3("Scenario probabilities by ceremony date"),
-        plotOutput("tradeoff_plot", height = "400px"),
-        
-        h3("Visa processing time distribution"),
-        plotOutput("dist_plot", height = "350px")
+        tabsetPanel(
+          id   = "main_tabs",
+          type = "tabs",
+          
+          ## ── Results tab ──────────────────────────────────
+          tabPanel(
+            "Results",
+            h3("Recommended ceremony plan"),
+            verbatimTextOutput("summary_text"),
+            
+            h3("Scenario probabilities by ceremony date"),
+            plotOutput("tradeoff_plot", height = "400px"),
+            
+            h3("Visa processing time distribution"),
+            plotOutput("dist_plot", height = "350px")
+          ),
+          
+          ## ── Working tab ──────────────────────────────────
+          tabPanel(
+            "Show Working",
+            
+            h3("Step 1 — Fitting the distribution"),
+            helpText("We model visa processing time as a",
+                     tags$strong("log-normal"), "random variable.",
+                     "Two published quantiles pin down the two parameters."),
+            verbatimTextOutput("working_fit"),
+            
+            h3("Step 2 — Impatience → target probability"),
+            helpText("Your impatience slider is converted to a",
+                     "target confidence level: the probability that",
+                     "the visa is granted before the ceremony date."),
+            verbatimTextOutput("working_impatience"),
+            
+            h3("Step 3 — Optimal ceremony date"),
+            helpText("We invert the CDF (i.e. take the quantile) at",
+                     "the target probability to find the recommended",
+                     "ceremony date in months after lodgement."),
+            verbatimTextOutput("working_optimal"),
+            
+            h3("Step 4 — Scenario probabilities"),
+            helpText("Given the ceremony date d₁, three mutually",
+                     "exclusive and exhaustive scenarios arise."),
+            verbatimTextOutput("working_scenarios"),
+            
+            h3("Step 5 — Cost breakdown"),
+            helpText("Each scenario has a fixed, cumulative cost.",
+                     "You never get back money already spent."),
+            verbatimTextOutput("working_costs"),
+            
+            hr(),
+            h4("Reference: key formulas"),
+            uiOutput("working_formulas")
+          )
+        )
       )
     )
   )
