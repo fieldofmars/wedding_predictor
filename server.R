@@ -222,15 +222,6 @@ shinyServer(function(input, output, session) {
               tags$td(style = "text-align: right; padding: 8px;",
                       sprintf("$%s", formatC(sc$cost_new_book, format = "f", digits = 0, big.mark = ",")))
             )
-          ),
-          tags$tfoot(
-            tags$tr(
-              style = "border-top: 2px solid #dee2e6; font-weight: bold;",
-              tags$td(style = "padding: 8px;", "Expected cost"),
-              tags$td(style = "text-align: right; padding: 8px;", ""),
-              tags$td(style = "text-align: right; padding: 8px;",
-                      sprintf("$%s", formatC(expected_cost, format = "f", digits = 0, big.mark = ",")))
-            )
           )
         )
       )
@@ -529,24 +520,6 @@ shinyServer(function(input, output, session) {
                 formatC(r, format = "f", digits = 0, big.mark = ","),
                 formatC(b, format = "f", digits = 0, big.mark = ","),
                 formatC(sc$cost_new_book, format = "f", digits = 0, big.mark = ",")))
-    
-    cat("─── Expected cost ───\n")
-    expected <- sc$p_on_time * sc$cost_on_time +
-      sc$p_resched * sc$cost_resched +
-      sc$p_new_book * sc$cost_new_book
-    cat("  E[Cost] = P₁×Cost₁ + P₂×Cost₂ + P₃×Cost₃\n")
-    cat(sprintf("          = %.4f × $%s + %.4f × $%s + %.4f × $%s\n",
-                sc$p_on_time,
-                formatC(sc$cost_on_time, format = "f", digits = 0, big.mark = ","),
-                sc$p_resched,
-                formatC(sc$cost_resched, format = "f", digits = 0, big.mark = ","),
-                sc$p_new_book,
-                formatC(sc$cost_new_book, format = "f", digits = 0, big.mark = ",")))
-    cat(sprintf("          = $%.2f + $%.2f + $%.2f\n",
-                sc$p_on_time * sc$cost_on_time,
-                sc$p_resched * sc$cost_resched,
-                sc$p_new_book * sc$cost_new_book))
-    cat(sprintf("          = $%.2f\n", expected))
   })
   
   ## Reference formulas (HTML)
