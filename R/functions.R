@@ -143,3 +143,106 @@ metrics_grid <- function(mu,
       cost_new_booking = booking_cost + resched_cost + new_booking_cost
     )
 }
+
+#' Run Monte Carlo simulation of visa processing outcomes
+#'
+#' Simulates N visa grant times from the log-normal distribution,
+#' classifies each into one of three scenarios, and computes the
+#' cost for each simulated "life".
+#'
+#' @param n_sims Number of simulations to run.
+#' @param d1 Ceremony date in months after lodgement.
+#' @param mu Meanlog of processing-time log-normal.
+#' @param sigma Sdlog of processing-time log-normal.
+#' @param booking_cost First booking cost.
+#' @param resched_cost Reschedule cost (full flat fee).
+#' @param new_booking_cost Cost of new booking if window exceeded. NULL = booking_cost.
+#' @param seed Optional random seed for reproducibility.
+#'
+#' @return A tibble with columns: sim_id, grant_time, scenario, cost.
+#' @export
+run_monte_carlo <- function(n_sims,
+                            d1,
+                            mu,
+                            sigma,
+                            booking_cost     = 400,
+                            resched_cost     = 200,
+                            new_booking_cost = NULL,
+                            seed             = NULL) {
+  if (is.null(new_booking_cost)) {
+    new_booking_cost <- booking_cost
+  }
+  
+  if (!is.null(seed)) set.seed(seed)
+  
+  grant_times <- rlnorm(n_sims, meanlog = mu, sdlog = sigma)
+  
+  scenario <- case_when(
+    grant_times <= d1        ~ "on_time",
+    grant_times <= d1 + 12   ~ "reschedule",
+    TRUE                     ~ "new_booking"
+  )
+  
+  cost <- case_when(
+    scenario == "on_time"     ~ booking_cost,
+    scenario == "reschedule"  ~ booking_cost + resched_cost,
+    scenario == "new_booking" ~ booking_cost + resched_cost + new_booking_cost
+  )
+  
+  tibble(
+    sim_id     = seq_len(n_sims),
+    grant_time = grant_times,
+    scenario   = factor(scenario, levels = c("on_time", "reschedule", "new_booking")),
+    cost       = cost
+  )
+}
+
+#' Summarise Monte Carlo results with confidence intervals
+#'
+#' @param mc_results Tibble from run_monte_carlo().
+#' @param ci_level Confidence interval level (default 0.95).
+#'
+#' @return A list with summary statistics and confidence intervals.
+#' @export
+summarise_monte_carlo <- function(mc_results, ci_level = 0.95) {
+  alpha <- 1 - ci_level
+  
+  total_n <- nrow(mc_results)
+  
+  # Scenario proportions
+  # count() produces a column called "n" — use .data$n to reference it
+  # and total_n (not n) for the denominator to avoid name collision
+  scenario_counts <- mc_results %>%
+    count(scenario, .drop = FALSE) %>%
+    mutate(proportion = n / total_n)
+  
+  # Cost statistics
+  cost_mean   <- mean(mc_results$cost)
+  cost_sd     <- sd(mc_results$cost)
+  cost_median <- median(mc_results$cost)
+  cost_ci     <- quantile(mc_results$cost, probs = c(alpha / 2, 1 - alpha / 2))
+  
+  # Grant time statistics
+  time_mean   <- mean(mc_results$grant_time)
+  time_sd     <- sd(mc_results$grant_time)
+  time_median <- median(mc_results$grant_time)
+  time_ci     <- quantile(mc_results$grant_time, probs = c(alpha / 2, 1 - alpha / 2))
+  
+  # Standard error of the mean cost (for convergence display)
+  cost_se <- cost_sd / sqrt(total_n)
+  
+  list(
+    n_sims          = total_n,
+    ci_level        = ci_level,
+    scenario_counts = scenario_counts,
+    cost_mean       = cost_mean,
+    cost_sd         = cost_sd,
+    cost_median     = cost_median,
+    cost_ci         = cost_ci,
+    cost_se         = cost_se,
+    time_mean       = time_mean,
+    time_sd         = time_sd,
+    time_median     = time_median,
+    time_ci         = time_ci
+  )
+}

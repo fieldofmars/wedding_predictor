@@ -116,6 +116,84 @@ shinyUI(
             plotOutput("dist_plot", height = "350px")
           ),
           
+          ## ── Monte Carlo tab ──────────────────────────────
+          tabPanel(
+            "Monte Carlo",
+            
+            tags$div(
+              style = "background: #eef2f7; border: 1px solid #c8d6e5; border-radius: 8px; padding: 16px; margin: 16px 0;",
+              tags$p(
+                style = "margin: 0; font-size: 14px; color: #555;",
+                tags$strong("Why Monte Carlo?"), " The Results tab uses exact closed-form ",
+                "probabilities from the log-normal distribution. This tab simulates ",
+                "thousands of individual outcomes to build the same picture empirically. ",
+                "Watch the estimates converge to the theoretical values as you increase ",
+                "the number of runs — a live demonstration of the Law of Large Numbers."
+              )
+            ),
+            
+            fluidRow(
+              column(4,
+                numericInput(
+                  inputId = "mc_n_sims",
+                  label   = "Number of simulations",
+                  value   = 10000,
+                  min     = 100,
+                  max     = 100000,
+                  step    = 1000
+                )
+              ),
+              column(4,
+                numericInput(
+                  inputId = "mc_seed",
+                  label   = "Random seed (optional, 0 = random)",
+                  value   = 0,
+                  min     = 0,
+                  max     = 999999,
+                  step    = 1
+                )
+              ),
+              column(4,
+                tags$div(
+                  style = "margin-top: 25px;",
+                  actionButton(
+                    inputId = "mc_run",
+                    label   = "Run Simulation",
+                    icon    = icon("play"),
+                    class   = "btn-primary btn-lg",
+                    style   = "width: 100%;"
+                  )
+                )
+              )
+            ),
+            
+            conditionalPanel(
+              condition = "output.mc_has_results",
+              
+              hr(),
+              
+              h3("Convergence: Monte Carlo vs Closed-Form"),
+              uiOutput("mc_comparison_table"),
+              
+              hr(),
+              
+              h3("Simulated visa grant times"),
+              plotOutput("mc_histogram", height = "400px"),
+              
+              h3("Simulated cost distribution"),
+              plotOutput("mc_cost_plot", height = "350px"),
+              
+              h3("Convergence of expected cost"),
+              helpText("Shows how the running average cost stabilises as more simulations accumulate."),
+              plotOutput("mc_convergence_plot", height = "300px"),
+              
+              hr(),
+              
+              h4("Raw simulation summary"),
+              verbatimTextOutput("mc_raw_summary")
+            )
+          ),
+          
           ## ── Working tab ──────────────────────────────────
           tabPanel(
             "Show Working",
