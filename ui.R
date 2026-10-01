@@ -1,10 +1,13 @@
 ## ui.R
 
-library(shiny)
-
 shinyUI(
   fluidPage(
-    titlePanel("Visa Processing & Wedding Scheduling Planner"),
+    useShinyjs(),
+    login_ui(id = "login"),
+    div(
+      id = "main_app",
+      style = "display: none;",
+      titlePanel("Visa Processing & Wedding Scheduling Planner"),
     
     sidebarLayout(
       sidebarPanel(
@@ -93,7 +96,9 @@ shinyUI(
           max     = 48,
           value   = c(6, 30),
           step    = 1
-        )
+        ),
+        hr(),
+        logout_button(id = "login")
       ),
       
       mainPanel(
@@ -232,6 +237,7 @@ shinyUI(
           )
         )
       )
+    )
     )
   )
 )

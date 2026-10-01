@@ -1,10 +1,24 @@
 ## server.R
 
-library(shiny)
-library(tidyverse)
-
 shinyServer(function(input, output, session) {
   
+  # ── Login Logic ──────────────────────────────────────────
+  USER <- login_server(
+    id = "login",
+    db_conn = db_conn,
+    create_account_message = "Your verification code is %s"
+  )
+  
+  observe({
+    if (USER$logged_in) {
+      shinyjs::hide("login-login_ui")
+      shinyjs::show("main_app")
+    } else {
+      shinyjs::show("login-login_ui")
+      shinyjs::hide("main_app")
+    }
+  })
+
   # ── Sync flag to prevent infinite loops ─────────────────
   sync_source <- reactiveVal("none")  # "slider", "date", or "none"
   
