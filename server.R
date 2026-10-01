@@ -6,7 +6,8 @@ shinyServer(function(input, output, session) {
   USER <- login_server(
     id = "login",
     db_conn = db_conn,
-    create_account_message = "Your verification code is %s"
+    create_account_message = "Your verification code is %s",
+    enclosing_panel = login_card
   )
   
   observe({

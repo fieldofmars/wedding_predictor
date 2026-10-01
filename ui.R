@@ -3,7 +3,30 @@
 shinyUI(
   fluidPage(
     useShinyjs(),
-    login_ui(id = "login"),
+    tags$head(tags$style(HTML("
+      /* The login box is a bslib card (a Bootstrap 5 component), but this app runs
+         on Bootstrap 3.4.1 (shiny's fluidPage default). Style it here so the card
+         reads as a card without changing the theme for the rest of the app. */
+      .bslib-card {
+        border: 1px solid #dee2e6;
+        border-radius: 0.5rem;
+        background-color: #ffffff;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.10);
+        overflow: hidden;
+      }
+      .bslib-card > .card-header {
+        padding: 0.75rem 1rem;
+        font-size: 1.1rem;
+        font-weight: 600;
+        background-color: #f8f9fa;
+        border-bottom: 1px solid #dee2e6;
+      }
+      .bslib-card > .card-body { padding: 1rem; }
+      .bslib-card .form-control { border-radius: 0.375rem; }
+    "))),
+    div(style = "max-width: 420px; margin: 40px auto;",
+      login_ui(id = "login")
+    ),
     div(
       id = "main_app",
       style = "display: none;",
