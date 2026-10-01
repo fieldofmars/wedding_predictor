@@ -26,6 +26,13 @@ shinyServer(function(input, output, session) {
   # ── Reactives ───────────────────────────────────────────
   
   dist_params <- reactive({
+    # Reject an impossible pair (q90 <= q50, or a missing/non-positive value)
+    # with a plain-English message instead of letting
+    # fit_lognormal_from_quantiles() trip its stopifnot(). validate() renders
+    # the message in outputs and halts dependants silently, like req().
+    problem <- quantile_problem(input$q50, input$q90)
+    validate(need(is.null(problem), problem))
+
     fit_lognormal_from_quantiles(q50 = input$q50,
                                  q90 = input$q90)
   })

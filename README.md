@@ -536,12 +536,16 @@ Ordered roughly by how likely they are to bite you.
    Both overrides have been removed — if a new script needs the user library, just use
    R's defaults.
 
-3. **`q90` can be entered smaller than `q50`.**
-   The UI constrains each input to `1..60` but never validates them *against each other*.
-   `fit_lognormal_from_quantiles()` then fails its `stopifnot(q90 >= q50)`, the
-   `dist_params()` reactive errors, and every downstream output shows a red Shiny error.
-   Same story if `q90 == q50` (sigma = 0). Guard this in `dist_params()` or via
-   `validate()`/`need()` in the render functions.
+3. **`q90` must be greater than `q50` (now validated).**
+   The UI constrains each input to `1..60` but not against each other, and a pair with
+   `q90 <= q50` has no usable log-normal fit (sigma would be zero or negative).
+   `quantile_problem()` in [R/functions.R](R/functions.R) checks the pair and
+   `dist_params()` runs it through `validate()`/`need()`, so outputs show a plain-English
+   message instead of a red Shiny error, and dependants (slider sync, Monte Carlo) halt
+   silently the way they do with `req()`. `fit_lognormal_from_quantiles()` keeps its
+   `stopifnot()` as a backstop for non-Shiny callers. **Follow the same pattern for any
+   new input** — add a `*_problem()` helper, a `validate()` in the reactive that first
+   reads it, and tests.
 
 4. **Two different definitions of "a month".**
    Date → months uses `days / 30.4375`; months → date uses `seq(..., by = "1 month")` and

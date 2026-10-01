@@ -284,6 +284,39 @@ test_that("summarise_monte_carlo returns correct structure", {
   expect_true(s$time_ci[1] <= s$time_ci[2])
 })
 
+# ── Input validation (q50 / q90 sanity) ─────────────────
+
+test_that("quantile_problem returns NULL for a valid pair", {
+  expect_null(quantile_problem(12, 23))
+  expect_null(quantile_problem(1, 60))
+})
+
+test_that("quantile_problem rejects q90 smaller than q50", {
+  msg <- quantile_problem(23, 12)
+  expect_true(is.character(msg))
+  expect_match(msg, "90% figure must be larger")
+})
+
+test_that("quantile_problem rejects q90 equal to q50 (zero spread)", {
+  expect_true(!is.null(quantile_problem(12, 12)))
+})
+
+test_that("quantile_problem rejects non-positive values", {
+  expect_match(quantile_problem(0, 23), "greater than 0")
+  expect_match(quantile_problem(12, -1), "greater than 0")
+})
+
+test_that("quantile_problem rejects missing or non-finite input", {
+  expect_true(!is.null(quantile_problem(NA, 23)))
+  expect_true(!is.null(quantile_problem(12, NULL)))
+  expect_true(!is.null(quantile_problem(12, Inf)))
+})
+
+test_that("fit_lognormal_from_quantiles still refuses a bad pair", {
+  expect_error(fit_lognormal_from_quantiles(q50 = 23, q90 = 12))
+  expect_error(fit_lognormal_from_quantiles(q50 = 12, q90 = 12))
+})
+
 test_that("summarise_monte_carlo scenario counts sum to n_sims", {
   params <- fit_lognormal_from_quantiles(q50 = 12, q90 = 23)
   
