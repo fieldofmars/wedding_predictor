@@ -340,8 +340,8 @@ the fallback.
 ### 4.4 First-run tour
 
 1. You land on the sign-in screen: a **Sign in** card, a **Create account** card beside
-   it and a **Reset password** card underneath (the main app is `display: none` until you
-   authenticate).
+   it (only when email verification is configured — see §5.3) and a **Reset password**
+   card underneath (the main app is `display: none` until you authenticate).
 2. Log in (see below) — the whole `#login_screen` block disappears and the planner
    appears.
 3. **Results tab**: risk banner + scenario table + expected cost, then the stacked-area
@@ -384,11 +384,15 @@ wrapper [ui.R](ui.R) puts around all three panels, so they disappear together on
 
 **The panels are bslib cards.** The package renders its inputs on the server and wraps
 them in `enclosing_panel` (default: `shiny::wellPanel()`); we pass `login_card` from
-[global.R](global.R). One function serves all three panels, so it derives its heading
-from the panel's contents — "Sign in", "Create account" or "Reset password" — rather
-than hard-coding one title. Because this app runs **Bootstrap 3.4.1** (Shiny's classic
-`fluidPage` default) while cards are a Bootstrap 5 component, [ui.R](ui.R) also injects a
-small CSS block that styles `.bslib-card`. The panels sit in a `max-width: 900px`
+[global.R](global.R). One function serves all three panels, and each panel passes through
+several states (form → "enter the code from the email" → new password), so the heading
+cannot come from what is on screen at the time. `panel_title()` therefore asks Shiny
+which output is rendering — `getCurrentOutputInfo()`, an identity that stays the same for
+the whole flow — and falls back to the panel's *inputs* (present in every state, unlike
+the buttons) when there is no render context. That yields "Sign in", "Create account" or
+"Reset password" and keeps it there. Because this app runs **Bootstrap 3.4.1** (Shiny's
+classic `fluidPage` default) while cards are a Bootstrap 5 component, [ui.R](ui.R) also
+injects a small CSS block that styles `.bslib-card`. The panels sit in a `max-width: 900px`
 wrapper: sign-in and sign-up side by side at ≥768px, the reset card full width below.
 
 ### 5.1 The database
@@ -430,9 +434,13 @@ the app once** (the tables are then created empty).
 
 Sign-up and password reset are wired up, and both depend on Gmail SMTP.
 
-* **Sign-up form.** [ui.R](ui.R) renders `new_user_ui(id = "login")`, so next to the
-  sign-in card there is a **Create account** card (email, password, confirm). The account
-  row is only inserted into `users` after the emailed code is typed in.
+* **Sign-up form.** [ui.R](ui.R) renders `new_user_ui(id = "login")` **only when
+  `signup_enabled(app_emailer)` holds** — with an emailer configured there is a **Create
+  account** card (email, password, confirm) beside the sign-in card and the account row is
+  only inserted into `users` after the emailed code is typed in. Without one, that column
+  holds a "Sign-up is disabled." note instead, because `login_server()` with
+  `emailer = NULL` accepts accounts immediately and a public form would let anyone create
+  one. [server.R](server.R) reinforces it by passing `verify_email = TRUE` explicitly.
 * **Email** is built in [global.R](global.R) by `make_app_emailer()`, which reads the
   Windows *user* environment variables:
 
@@ -459,10 +467,12 @@ Sign-up and password reset are wired up, and both depend on Gmail SMTP.
   code the same way. The email body is the package's own default text (we no longer pass
   `create_account_message`).
 * **No credentials in the repo.** If either variable is missing, `make_app_emailer()`
-  returns `NULL`, [server.R](server.R) passes that straight through, and the app falls
-  back to the old no-email mode: sign-ups accepted immediately, the reset card printing
-  *"Email server has not been configured."*, and a `message()` printed at startup. The
-  function is covered by `tests/testthat/test_server.R` without ever sending a mail.
+  returns `NULL` and the app switches to a locked-down no-email mode: the sign-up card is
+  replaced by the note above (nobody can register), `verify_email = TRUE` means the module
+  cannot insert an unverified row either, the reset card prints *"Email server has not
+  been configured."*, and a `message()` is printed at startup. Signing in and the seeded
+  [seed_user.R](seed_user.R) account keep working. Both the gating and the rendered HTML
+  are covered by `tests/testthat/test_server.R`, without ever sending a mail.
 * **Cookies: still plaintext.** "Remember me" writes a `loginusername` cookie for 30
   days holding the **plain username**, readable by JavaScript, cleared on logout. The
   installed versions of `cookies`/`login` expose no password or encryption option at all
@@ -648,16 +658,25 @@ Ordered roughly by how likely they are to bite you.
 
 10. **Auth is still demo-grade.** Email verification and password reset now work (see
     §5.3), but passwords are unsalted MD5 hashed in the browser, the remember-me cookie
-    holds a plain username, sign-up is open to anyone who can reach the app, and the user
-    table is a single flat SQLite file. Treat it as a demo layer: if the app ever holds
-    real personal data, put it behind HTTPS + a real identity provider.
+    holds a plain username, and the user table is a single flat SQLite file. Sign-up is
+    gated on an emailer being configured, but from there it is open to the internet.
+    Treat it as a demo layer: if the app ever holds real personal data, put it behind
+    HTTPS + a real identity provider.
 
-11. **`output$mc_has_results` must stay registered**
+11. **The `login` package's emailed-code check is weak.** Its confirm handler is
+    `if (nchar(code) != 6 & reset_code() == code)` — `&` where a comparison belongs,
+    tested against the *password-reset* code rather than the one it just generated — so
+    **any 6-character code is accepted**. Treat verification as a UX step, not a security
+    boundary, and consider reporting it upstream
+    ([jbryer/login](https://github.com/jbryer/login)). Our own defence is to offer sign-up
+    only when an emailer exists (§5.3).
+
+12. **`output$mc_has_results` must stay registered**
     with `outputOptions(..., suspendWhenHidden = FALSE)`; if you remove that line the
     Monte Carlo results panel silently never appears.
 
-12. **CRLF line endings, no `.gitattributes`, and a casual commit history** (8 commits
-    so far). Keep the existing style — 2-space indent, `##` header comments in
+13. **CRLF line endings, no `.gitattributes`, and a casual commit history.** Keep the
+    existing style — 2-space indent, `##` header comments in
     `global.R`/`ui.R`/`server.R`, roxygen comments for everything in `R/functions.R`.
 
 ---
@@ -675,8 +694,8 @@ Ordered roughly by how likely they are to bite you.
 | Change or extend the maths | [R/functions.R](R/functions.R) first (keep it Shiny-free), then add tests in [tests/testthat/test_functions.R](tests/testthat/test_functions.R). |
 | Change input validation or its wiring | `quantile_problem()` in [R/functions.R](R/functions.R) plus the `validate()` call in `dist_params()` in [server.R](server.R), then extend [tests/testthat/test_server.R](tests/testthat/test_server.R) so the rendered message is covered too. |
 | Rebrand the app | `titlePanel(...)` in [ui.R](ui.R) and the `subtitle`/`title` strings in the ggplot `labs()` calls. |
-| Turn email verification on/off | Set or unset `GMAIL_USER` / `GMAIL_PASS` (§5.3); `make_app_emailer()` in [global.R](global.R) decides whether `login_server()` receives an emailer. |
-| Change the sign-up / reset labels | `username_label`, `password_label`, `create_account_label` arguments of `login_server()` — they also drive the card headings `login_card()` picks. |
+| Turn email verification on/off | Set or unset `GMAIL_USER` / `GMAIL_PASS` (§5.3); `make_app_emailer()` in [global.R](global.R) decides both whether `login_server()` receives an emailer and whether `ui.R` shows the sign-up card (`signup_enabled()`). |
+| Change the sign-up / reset labels | `username_label`, `password_label`, `create_account_label` arguments of `login_server()`. Card headings are chosen separately by `panel_title()` in [global.R](global.R), from the output being rendered rather than from these labels. |
 
 ### Useful commands
 

@@ -6,12 +6,15 @@ shinyServer(function(input, output, session) {
   USER <- login_server(
     id = "login",
     db_conn = db_conn,
-    # Gmail SMTP, built in global.R from GMAIL_USER / GMAIL_PASS. Supplying an
-    # emailer is what turns on verify_email (default: !is.null(emailer)), so
-    # sign-ups have to confirm an emailed code and the reset-password panel
-    # becomes usable. NULL keeps the old no-email mode: immediate sign-up and
-    # "Email server has not been configured." on the reset panel.
+    # Gmail SMTP, built in global.R from GMAIL_USER / GMAIL_PASS. NULL when the
+    # variables are missing, which switches the reset panel to "Email server has
+    # not been configured." - ui.R hides the sign-up card in that case too.
     emailer = app_emailer,
+    # Backstop for that case: the package default is
+    # verify_email = !is.null(emailer), i.e. with no emailer a signup would be
+    # accepted immediately. Forcing it on means a signup can never insert a row
+    # without a code being sent first.
+    verify_email = TRUE,
     enclosing_panel = login_card
   )
   

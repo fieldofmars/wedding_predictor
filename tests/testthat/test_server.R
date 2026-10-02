@@ -179,6 +179,101 @@ test_that("the app's emailer tracks GMAIL_USER / GMAIL_PASS", {
   expect_identical(!is.null(app_emailer), configured)
 })
 
+test_that("sign-up is gated on email verification being available", {
+  expect_false(signup_enabled(NULL))
+  expect_true(signup_enabled(function(...) invisible(NULL)))
+  expect_identical(signup_enabled(app_emailer), !is.null(app_emailer))
+})
+
+test_that("ui.R only shows the create-account card when there is an emailer", {
+  # ui.R decides at start-up, so render it twice with app_emailer overridden.
+  render_ui <- function(emailer) {
+    env <- new.env(parent = globalenv())
+    env$app_emailer <- emailer
+    source(file.path(app_root, "ui.R"), local = env)$value
+  }
+
+  with_email <- as.character(render_ui(function(...) invisible(NULL)))
+  expect_match(with_email, "login-new_user_ui", fixed = TRUE)
+  expect_false(grepl("Sign-up is disabled", with_email, fixed = TRUE))
+
+  without_email <- as.character(render_ui(NULL))
+  expect_false(grepl("login-new_user_ui", without_email, fixed = TRUE))
+  expect_match(without_email, "Sign-up is disabled", fixed = TRUE)
+  # Sign-in and password reset stay available either way.
+  expect_match(without_email, "login-login_ui", fixed = TRUE)
+  expect_match(without_email, "login-reset_password_ui", fixed = TRUE)
+})
+
+test_that("card headings follow the panel, not the current step", {
+  # The package swaps a panel's contents as a flow advances: the sign-up form
+  # loses its "Create Account" button once a code has been requested, and both
+  # flow panels then show only Resend/Submit. Sniffing button text gave those
+  # states the "Sign in" heading, so the inputs are what identifies a panel.
+  expect_equal(panel_title(list(
+    div(textOutput("login-login_message")),
+    textInput("login-username", "Email:", ""),
+    passwdInput("login-password", "Password:", ""),
+    checkboxInput("login-remember_me", "Remember me?", TRUE),
+    actionButton("login-Login", "Login")
+  )), "Sign in")
+
+  expect_equal(panel_title(list(
+    textInput("login-new_username", "Email:", ""),
+    passwdInput("login-new_password1", "Password:", ""),
+    passwdInput("login-new_password2", "Confirm Password:", ""),
+    actionButton("login-new_user", "Create Account")
+  )), "Create account")
+
+  # Sign-up, code-entry state: no "Create Account" button left on screen.
+  expect_equal(panel_title(list(
+    textInput("login-new_user_code", "Enter the code from the email:", ""),
+    actionButton("login-send_new_user_code", "Resend Code"),
+    actionButton("login-submit_new_user_code", "Submit")
+  )), "Create account")
+
+  expect_equal(panel_title(list(
+    textInput("login-forgot_password_email", "Email address: ", ""),
+    actionButton("login-send_reset_password_code", "Send reset code")
+  )), "Reset password")
+
+  # Reset, code-entry state: "Send reset code" has become "Resend Code".
+  expect_equal(panel_title(list(
+    textInput("login-reset_password_code", "Enter the code from the email:", ""),
+    actionButton("login-send_reset_password_code", "Resend Code"),
+    actionButton("login-submit_reset_password_code", "Submit")
+  )), "Reset password")
+
+  # Reset, new-password state: only password fields and a "Reset Password" button.
+  expect_equal(panel_title(list(
+    passwdInput("login-reset_password1", "Enter new password:", ""),
+    passwdInput("login-reset_password2", "Confirm new password:", ""),
+    actionButton("login-reset_new_password", "Reset Password")
+  )), "Reset password")
+})
+
+test_that("each panel keeps its heading while it renders", {
+  local_stub_cookies()
+  shiny::testServer(server_fn, {
+    do.call(session$setInputs, base_inputs)
+
+    # Here the heading comes from the output being rendered, not the inputs.
+    # The login module namespaces its outputs, so they are addressed by their
+    # session-level ids.
+    expect_match(output_text(output[["login-login_ui"]]), "Sign in", fixed = TRUE)
+    expect_match(output_text(output[["login-new_user_ui"]]),
+                 "Create account", fixed = TRUE)
+
+    reset <- output_text(output[["login-reset_password_ui"]])
+    if (is.null(app_emailer)) {
+      # No emailer: a plain div, no card and no heading at all.
+      expect_match(reset, "Email server has not been configured", fixed = TRUE)
+    } else {
+      expect_match(reset, "Reset password", fixed = TRUE)
+    }
+  })
+})
+
 # global.R opened a connection for this test process only; the running app has
 # its own.
 if (exists("db_conn", inherits = FALSE) && DBI::dbIsValid(db_conn)) {
