@@ -208,12 +208,6 @@ shinyUI(
               max     = 48,
               value   = c(6, 30),
               step    = 1
-            ),
-            
-            hr(style = "margin: 20px 0; border-color: rgba(212, 175, 55, 0.25);"),
-            div(
-              class = "d-grid wedding-logout-wrap",
-              logout_button(id = "login", label = "Sign Out")
             )
           ),
           
