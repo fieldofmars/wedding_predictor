@@ -6,16 +6,21 @@ shinyServer(function(input, output, session) {
   USER <- login_server(
     id = "login",
     db_conn = db_conn,
-    create_account_message = "Your verification code is %s",
+    # Gmail SMTP, built in global.R from GMAIL_USER / GMAIL_PASS. Supplying an
+    # emailer is what turns on verify_email (default: !is.null(emailer)), so
+    # sign-ups have to confirm an emailed code and the reset-password panel
+    # becomes usable. NULL keeps the old no-email mode: immediate sign-up and
+    # "Email server has not been configured." on the reset panel.
+    emailer = app_emailer,
     enclosing_panel = login_card
   )
   
   observe({
     if (USER$logged_in) {
-      shinyjs::hide("login-login_ui")
+      shinyjs::hide("login_screen")
       shinyjs::show("main_app")
     } else {
-      shinyjs::show("login-login_ui")
+      shinyjs::show("login_screen")
       shinyjs::hide("main_app")
     }
   })
