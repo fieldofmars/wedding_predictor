@@ -298,25 +298,32 @@ h1, h2, h3, h4, .brand-title, .wedding-serif {
   gap: 8px;
 }
 
+.nav-tabs .nav-link,
 .nav-tabs > li > a {
   font-family: 'Plus Jakarta Sans', sans-serif !important;
   font-weight: 600 !important;
   font-size: 0.98rem !important;
   color: var(--wedding-text-muted) !important;
-  border: 1px solid transparent !important;
+  border: 1.5px solid transparent !important;
   border-radius: 12px 12px 0 0 !important;
   padding: 12px 22px !important;
   transition: all 0.2s ease !important;
-  display: flex !important;
-  align-items: center;
-  gap: 8px;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  background-color: transparent !important;
 }
 
+.nav-tabs .nav-link:hover,
 .nav-tabs > li > a:hover {
   background: rgba(212, 175, 55, 0.08) !important;
   color: var(--wedding-primary) !important;
+  border-color: rgba(212, 175, 55, 0.2) !important;
 }
 
+.nav-tabs .nav-link.active,
+.nav-tabs .nav-link.active:focus,
+.nav-tabs .nav-link.active:hover,
 .nav-tabs > li.active > a,
 .nav-tabs > li.active > a:focus,
 .nav-tabs > li.active > a:hover {
@@ -324,7 +331,8 @@ h1, h2, h3, h4, .brand-title, .wedding-serif {
   background-color: #FFFFFF !important;
   border: 2px solid var(--wedding-border) !important;
   border-bottom-color: #FFFFFF !important;
-  box-shadow: 0 -4px 12px rgba(139, 38, 62, 0.04);
+  box-shadow: 0 -4px 12px rgba(139, 38, 62, 0.04) !important;
+  font-weight: 700 !important;
 }
 
 /* --------------------------------------------------------------------------
