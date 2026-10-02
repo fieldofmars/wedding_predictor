@@ -27,8 +27,17 @@ old_wd <- setwd(app_root)
 # server function (shinyServer() returns its argument).
 source("global.R", local = FALSE)
 server_fn <- source("server.R", local = FALSE)$value
-
 setwd(old_wd)
+
+# A server function built with a chosen emailer, so tests of the email-dependent
+# paths do not depend on whether this machine has GMAIL_USER / GMAIL_PASS set.
+# server.R reads app_emailer when the function runs, so sourcing it into an
+# environment that defines app_emailer overrides the value global.R produced.
+server_with_emailer <- function(emailer) {
+  env <- new.env(parent = globalenv())
+  env$app_emailer <- emailer
+  source(file.path(app_root, "server.R"), local = env)$value
+}
 
 # Every input the server reads, with the app's defaults.
 base_inputs <- list(
@@ -205,6 +214,69 @@ test_that("ui.R only shows the create-account card when there is an emailer", {
   expect_match(without_email, "login-reset_password_ui", fixed = TRUE)
 })
 
+test_that("a sign-up submitted without an emailer creates no user row", {
+  # Hiding the card in ui.R only stops honest clients: a crafted session can
+  # post login-new_* inputs anyway, so the server-side backstop (verify_email =
+  # TRUE in server.R) is what has to hold. Submit the form and check the
+  # database afterwards.
+  local_stub_cookies()
+  no_email_server <- server_with_emailer(NULL)
+
+  shiny::testServer(no_email_server, {
+    probe <- "no-email-signup-test@example.com"
+    do.call(session$setInputs, base_inputs)
+    session$setInputs(
+      `login-new_username` = probe,
+      `login-new_password1` = "hunter2hunter2",
+      `login-new_password2` = "hunter2hunter2"
+    )
+
+    # The handler runs and dies at the send step, printing a note. Capturing it
+    # means the database assertions below cannot pass without the handler having
+    # run at all. It is a warning rather than a message (the package calls
+    # message(e) on the caught error), and testthat swallows that unless it is
+    # handled explicitly here.
+    sent <- character(0)
+    withCallingHandlers(
+      session$setInputs(`login-new_user` = 1),
+      message = function(m) {
+        sent <<- c(sent, conditionMessage(m))
+        invokeRestart("muffleMessage")
+      },
+      warning = function(w) {
+        sent <<- c(sent, conditionMessage(w))
+        invokeRestart("muffleWarning")
+      }
+    )
+    expect_true(any(grepl("email", sent, ignore.case = TRUE)),
+                info = paste(utils::head(sent, 3), collapse = " | "))
+    expect_equal(output_text(output[["login-new_user_message"]]), "")
+
+    rows <- DBI::dbGetQuery(
+      db_conn,
+      "SELECT username FROM users WHERE lower(username) = lower(?)",
+      params = list(probe)
+    )
+    activity <- DBI::dbGetQuery(
+      db_conn,
+      paste("SELECT username FROM users_activity WHERE lower(username) = lower(?)",
+            "AND action = 'create_account'"),
+      params = list(probe)
+    )
+
+    # Leave the database exactly as found, whatever the assertions below say.
+    DBI::dbExecute(db_conn,
+                   "DELETE FROM users WHERE lower(username) = lower(?)",
+                   params = list(probe))
+    DBI::dbExecute(db_conn,
+                   "DELETE FROM users_activity WHERE lower(username) = lower(?)",
+                   params = list(probe))
+
+    expect_equal(nrow(rows), 0)
+    expect_equal(nrow(activity), 0)
+  })
+})
+
 test_that("card headings follow the panel, not the current step", {
   # The package swaps a panel's contents as a flow advances: the sign-up form
   # loses its "Create Account" button once a code has been requested, and both
@@ -254,7 +326,12 @@ test_that("card headings follow the panel, not the current step", {
 
 test_that("each panel keeps its heading while it renders", {
   local_stub_cookies()
-  shiny::testServer(server_fn, {
+  # A stub emailer makes this independent of the machine's GMAIL_* credentials:
+  # without one login_server() never builds the reset card, so its
+  # output-name heading would otherwise go untested on a credential-less machine.
+  stub_server <- server_with_emailer(function(...) invisible(NULL))
+
+  shiny::testServer(stub_server, {
     do.call(session$setInputs, base_inputs)
 
     # Here the heading comes from the output being rendered, not the inputs.
@@ -263,14 +340,24 @@ test_that("each panel keeps its heading while it renders", {
     expect_match(output_text(output[["login-login_ui"]]), "Sign in", fixed = TRUE)
     expect_match(output_text(output[["login-new_user_ui"]]),
                  "Create account", fixed = TRUE)
+    expect_match(output_text(output[["login-reset_password_ui"]]),
+                 "Reset password", fixed = TRUE)
+  })
+})
+
+test_that("without an emailer the reset panel is a message, not a card", {
+  local_stub_cookies()
+  no_email_server <- server_with_emailer(NULL)
+
+  shiny::testServer(no_email_server, {
+    do.call(session$setInputs, base_inputs)
 
     reset <- output_text(output[["login-reset_password_ui"]])
-    if (is.null(app_emailer)) {
-      # No emailer: a plain div, no card and no heading at all.
-      expect_match(reset, "Email server has not been configured", fixed = TRUE)
-    } else {
-      expect_match(reset, "Reset password", fixed = TRUE)
-    }
+    expect_match(reset, "Email server has not been configured", fixed = TRUE)
+    expect_false(grepl("Reset password", reset, fixed = TRUE))
+
+    # Sign-in is unaffected by the missing emailer.
+    expect_match(output_text(output[["login-login_ui"]]), "Sign in", fixed = TRUE)
   })
 })
 
