@@ -186,7 +186,7 @@ It is a conventional multi-file Shiny app: Shiny looks for `global.R`, `ui.R` an
 | [server.R](server.R) | All the reactive logic and rendering: slider↔date synchronisation, the risk panel, the two Results plots, the whole Monte Carlo tab, and the "Show Working" text. This is the biggest file (~1,000 lines). |
 | [R/functions.R](R/functions.R) | **All pure business logic**, with roxygen-style documentation: `fit_lognormal_from_quantiles()`, `visa_cdf()`, `visa_pdf()`, `scenario_analysis()`, `find_optimal_d1()`, `metrics_grid()`, `run_monte_carlo()`, `summarise_monte_carlo()`. No Shiny code here — which is what makes it unit-testable. |
 | [tests/testthat/test_functions.R](tests/testthat/test_functions.R) | 26 `test_that()` blocks covering the pure functions above (82 expectations). |
-| [tests/testthat/test_server.R](tests/testthat/test_server.R) | Server-level tests: drives the real `server.R` through `shiny::testServer()` and checks that invalid quantiles surface as the friendly message (20 expectations). |
+| [tests/testthat/test_server.R](tests/testthat/test_server.R) | Server-level tests: drives the real `server.R` through `shiny::testServer()` and checks that invalid quantiles surface as the friendly message, that sign-up is gated on an emailer, and that card headings stay stable (57 expectations). |
 | [seed_user.R](seed_user.R) | Standalone script that creates (or refreshes) one test account — `test@example.com` / `test` — leaving all other users untouched. |
 | [shiny_run.ps1](shiny_run.ps1) | Windows PowerShell launcher: sets the library path and starts the app on port 8100. |
 | [users.sqlite](users.sqlite) | The login database (`users` + `users_activity` tables). **Git-ignored** (`*.sqlite` in [.gitignore](.gitignore)) — it will not be present on a fresh clone. |
@@ -340,8 +340,8 @@ the fallback.
 ### 4.4 First-run tour
 
 1. You land on the sign-in screen: a **Sign in** card, a **Create account** card beside
-   it and a **Reset password** card underneath (the main app is `display: none` until you
-   authenticate).
+   it (only when email verification is configured — see §5.3) and a **Reset password**
+   card underneath (the main app is `display: none` until you authenticate).
 2. Log in (see below) — the whole `#login_screen` block disappears and the planner
    appears.
 3. **Results tab**: risk banner + scenario table + expected cost, then the stacked-area
@@ -384,11 +384,15 @@ wrapper [ui.R](ui.R) puts around all three panels, so they disappear together on
 
 **The panels are bslib cards.** The package renders its inputs on the server and wraps
 them in `enclosing_panel` (default: `shiny::wellPanel()`); we pass `login_card` from
-[global.R](global.R). One function serves all three panels, so it derives its heading
-from the panel's contents — "Sign in", "Create account" or "Reset password" — rather
-than hard-coding one title. Because this app runs **Bootstrap 3.4.1** (Shiny's classic
-`fluidPage` default) while cards are a Bootstrap 5 component, [ui.R](ui.R) also injects a
-small CSS block that styles `.bslib-card`. The panels sit in a `max-width: 900px`
+[global.R](global.R). One function serves all three panels, and each panel passes through
+several states (form → "enter the code from the email" → new password), so the heading
+cannot come from what is on screen at the time. `panel_title()` therefore asks Shiny
+which output is rendering — `getCurrentOutputInfo()`, an identity that stays the same for
+the whole flow — and falls back to the panel's *inputs* (present in every state, unlike
+the buttons) when there is no render context. That yields "Sign in", "Create account" or
+"Reset password" and keeps it there. Because this app runs **Bootstrap 3.4.1** (Shiny's
+classic `fluidPage` default) while cards are a Bootstrap 5 component, [ui.R](ui.R) also
+injects a small CSS block that styles `.bslib-card`. The panels sit in a `max-width: 900px`
 wrapper: sign-in and sign-up side by side at ≥768px, the reset card full width below.
 
 ### 5.1 The database
@@ -430,9 +434,13 @@ the app once** (the tables are then created empty).
 
 Sign-up and password reset are wired up, and both depend on Gmail SMTP.
 
-* **Sign-up form.** [ui.R](ui.R) renders `new_user_ui(id = "login")`, so next to the
-  sign-in card there is a **Create account** card (email, password, confirm). The account
-  row is only inserted into `users` after the emailed code is typed in.
+* **Sign-up form.** [ui.R](ui.R) renders `new_user_ui(id = "login")` **only when
+  `signup_enabled(app_emailer)` holds** — with an emailer configured there is a **Create
+  account** card (email, password, confirm) beside the sign-in card and the account row is
+  only inserted into `users` after the emailed code is typed in. Without one, that column
+  holds a "Sign-up is disabled." note instead, because `login_server()` with
+  `emailer = NULL` accepts accounts immediately and a public form would let anyone create
+  one. [server.R](server.R) reinforces it by passing `verify_email = TRUE` explicitly.
 * **Email** is built in [global.R](global.R) by `make_app_emailer()`, which reads the
   Windows *user* environment variables:
 
@@ -459,10 +467,12 @@ Sign-up and password reset are wired up, and both depend on Gmail SMTP.
   code the same way. The email body is the package's own default text (we no longer pass
   `create_account_message`).
 * **No credentials in the repo.** If either variable is missing, `make_app_emailer()`
-  returns `NULL`, [server.R](server.R) passes that straight through, and the app falls
-  back to the old no-email mode: sign-ups accepted immediately, the reset card printing
-  *"Email server has not been configured."*, and a `message()` printed at startup. The
-  function is covered by `tests/testthat/test_server.R` without ever sending a mail.
+  returns `NULL` and the app switches to a locked-down no-email mode: the sign-up card is
+  replaced by the note above (nobody can register), `verify_email = TRUE` means the module
+  cannot insert an unverified row either, the reset card prints *"Email server has not
+  been configured."*, and a `message()` is printed at startup. Signing in and the seeded
+  [seed_user.R](seed_user.R) account keep working. Both the gating and the rendered HTML
+  are covered by `tests/testthat/test_server.R`, without ever sending a mail.
 * **Cookies: still plaintext.** "Remember me" writes a `loginusername` cookie for 30
   days holding the **plain username**, readable by JavaScript, cleared on logout. The
   installed versions of `cookies`/`login` expose no password or encryption option at all
@@ -495,7 +505,7 @@ checks the pure business logic in `R/functions.R`:
 * `quantile_problem()` — every rejected pair (`q90 < q50`, `q90 == q50`,
   non-positive, missing, `Inf`) and the accepted ones.
 
-**[test_server.R](tests/testthat/test_server.R)** (20 expectations) covers the Shiny
+**[test_server.R](tests/testthat/test_server.R)** (57 expectations) covers the Shiny
 wiring those helper tests cannot: it sources `global.R` and `server.R`, then drives the
 real server function with `shiny::testServer()` and asserts that
 
@@ -505,12 +515,24 @@ real server function with `shiny::testServer()` and asserts that
   (`output$mc_input_problem`) actually display that message, and stay quiet for a valid
   pair;
 * a cached Monte Carlo run is dropped (not left on screen) the moment the inputs go
-  invalid, and is not resurrected when they are fixed.
+  invalid, and is not resurrected when they are fixed;
+* `make_app_emailer()` is `NULL` unless both credentials exist and hands host/port
+  through to emayili, `signup_enabled()` gates sign-up on it, and `ui.R` renders the
+  create-account card both ways (its HTML is inspected with and without an emailer);
+* a sign-up **submitted** with no emailer writes nothing to `users` or `users_activity`
+  — that is the `verify_email = TRUE` backstop in [server.R](server.R), asserted even
+  though the form is hidden, because a crafted session can post the inputs anyway;
+* every panel keeps its card heading across each state of its flow (`panel_title()` on
+  the sign-in, sign-up and reset states), and with no emailer the reset panel is a plain
+  message rather than a card.
 
-Two setup details are baked into that file, both worth knowing if you copy the pattern:
+Three setup details are baked into that file, all worth knowing if you copy the pattern:
 `cookies::get_cookie()` is stubbed because `login_server()` polls it on every flush and it
-does not work under a mock session, and the date inputs are passed as `Date` objects
-because that is what Shiny hands `server.R`, which feeds them into `seq(by = "1 month")`.
+does not work under a mock session; the date inputs are passed as `Date` objects because
+that is what Shiny hands `server.R`, which feeds them into `seq(by = "1 month")`; and
+`server_with_emailer()` re-sources `server.R` around a chosen emailer so the
+email-dependent assertions behave the same whether or not this machine has `GMAIL_USER` /
+`GMAIL_PASS` — the suite passes identically with those variables stripped.
 
 **There is no `DESCRIPTION` file and no `tests/testthat.R` runner**, so
 `devtools::test()` / `R CMD check` will not work as-is. `test_functions.R` also assumes the
@@ -525,7 +547,7 @@ library(tidyverse)      # provides %>%, tibble, dplyr used inside R/functions.R
 library(testthat)
 source("R/functions.R")
 
-test_dir("tests/testthat")    # both files: 102 expectations
+test_dir("tests/testthat")    # both files: 139 expectations
 # or a single file:
 # test_file("tests/testthat/test_functions.R")
 # test_file("tests/testthat/test_server.R")
@@ -648,16 +670,25 @@ Ordered roughly by how likely they are to bite you.
 
 10. **Auth is still demo-grade.** Email verification and password reset now work (see
     §5.3), but passwords are unsalted MD5 hashed in the browser, the remember-me cookie
-    holds a plain username, sign-up is open to anyone who can reach the app, and the user
-    table is a single flat SQLite file. Treat it as a demo layer: if the app ever holds
-    real personal data, put it behind HTTPS + a real identity provider.
+    holds a plain username, and the user table is a single flat SQLite file. Sign-up is
+    gated on an emailer being configured, but from there it is open to the internet.
+    Treat it as a demo layer: if the app ever holds real personal data, put it behind
+    HTTPS + a real identity provider.
 
-11. **`output$mc_has_results` must stay registered**
+11. **The `login` package's emailed-code check is weak.** Its confirm handler is
+    `if (nchar(code) != 6 & reset_code() == code)` — `&` where a comparison belongs,
+    tested against the *password-reset* code rather than the one it just generated — so
+    **any 6-character code is accepted**. Treat verification as a UX step, not a security
+    boundary, and consider reporting it upstream
+    ([jbryer/login](https://github.com/jbryer/login)). Our own defence is to offer sign-up
+    only when an emailer exists (§5.3).
+
+12. **`output$mc_has_results` must stay registered**
     with `outputOptions(..., suspendWhenHidden = FALSE)`; if you remove that line the
     Monte Carlo results panel silently never appears.
 
-12. **CRLF line endings, no `.gitattributes`, and a casual commit history** (8 commits
-    so far). Keep the existing style — 2-space indent, `##` header comments in
+13. **CRLF line endings, no `.gitattributes`, and a casual commit history.** Keep the
+    existing style — 2-space indent, `##` header comments in
     `global.R`/`ui.R`/`server.R`, roxygen comments for everything in `R/functions.R`.
 
 ---
@@ -675,14 +706,14 @@ Ordered roughly by how likely they are to bite you.
 | Change or extend the maths | [R/functions.R](R/functions.R) first (keep it Shiny-free), then add tests in [tests/testthat/test_functions.R](tests/testthat/test_functions.R). |
 | Change input validation or its wiring | `quantile_problem()` in [R/functions.R](R/functions.R) plus the `validate()` call in `dist_params()` in [server.R](server.R), then extend [tests/testthat/test_server.R](tests/testthat/test_server.R) so the rendered message is covered too. |
 | Rebrand the app | `titlePanel(...)` in [ui.R](ui.R) and the `subtitle`/`title` strings in the ggplot `labs()` calls. |
-| Turn email verification on/off | Set or unset `GMAIL_USER` / `GMAIL_PASS` (§5.3); `make_app_emailer()` in [global.R](global.R) decides whether `login_server()` receives an emailer. |
-| Change the sign-up / reset labels | `username_label`, `password_label`, `create_account_label` arguments of `login_server()` — they also drive the card headings `login_card()` picks. |
+| Turn email verification on/off | Set or unset `GMAIL_USER` / `GMAIL_PASS` (§5.3); `make_app_emailer()` in [global.R](global.R) decides both whether `login_server()` receives an emailer and whether `ui.R` shows the sign-up card (`signup_enabled()`). |
+| Change the sign-up / reset labels | `username_label`, `password_label`, `create_account_label` arguments of `login_server()`. Card headings are chosen separately by `panel_title()` in [global.R](global.R), from the output being rendered rather than from these labels. |
 
 ### Useful commands
 
 ```r
 shiny::runApp(".", port = 8100)                       # run the app
-testthat::test_dir("tests/testthat")          # both test files (102 expectations)
+testthat::test_dir("tests/testthat")          # both test files (139 expectations)
 ?login::login_server                                   # auth package reference
 sessionInfo()                                          # report versions when filing a bug
 ```

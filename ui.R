@@ -34,7 +34,22 @@ shinyUI(
       style = "max-width: 900px; margin: 40px auto;",
       fluidRow(
         column(6, login_ui(id = "login")),
-        column(6, new_user_ui(id = "login"))
+        # Sign-up is offered only when it can be verified by email: with no
+        # emailer login_server() would accept accounts immediately, so a public
+        # form would let anyone create one. signup_enabled() lives in global.R.
+        column(6, if (signup_enabled(app_emailer)) {
+          new_user_ui(id = "login")
+        } else {
+          div(
+            class = "text-muted",
+            style = paste("padding: 1.25rem; border: 1px dashed #dee2e6;",
+                          "border-radius: 0.5rem;"),
+            tags$strong("Sign-up is disabled."),
+            " Creating an account needs an emailed verification code, and no ",
+            "email server is configured - set GMAIL_USER and GMAIL_PASS, then ",
+            "restart the app."
+          )
+        })
       ),
       fluidRow(
         column(12, reset_password_ui(id = "login"))
