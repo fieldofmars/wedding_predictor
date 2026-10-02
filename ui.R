@@ -160,6 +160,8 @@ shinyUI(
               )
             ),
             
+            uiOutput("mc_input_problem"),
+            
             fluidRow(
               column(4,
                 numericInput(

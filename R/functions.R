@@ -4,16 +4,54 @@
 #'
 #' @param q50 Numeric. Time (months) at which 50% of visas are processed.
 #' @param q90 Numeric. Time (months) at which 90% of visas are processed.
+#'   Must be strictly greater than \code{q50} - equal quantiles would give
+#'   \code{sigma = 0}, i.e. no spread at all.
 #'
 #' @return A list with elements \code{mu} and \code{sigma} for a log-normal distribution.
+#' @seealso \code{quantile_problem()} for a non-throwing version of the same checks.
 #' @export
 fit_lognormal_from_quantiles <- function(q50, q90) {
-  stopifnot(q50 > 0, q90 > 0, q90 >= q50)
+  stopifnot(q50 > 0, q90 > 0, q90 > q50)
   
   mu    <- log(q50)
   sigma <- (log(q90) - mu) / qnorm(0.9)
   
   list(mu = mu, sigma = sigma)
+}
+
+#' Check that two quantiles can define a log-normal distribution
+#'
+#' Fitting needs a positive median and a 90th percentile strictly above it
+#' (otherwise sigma would be zero or negative, and the distribution is not
+#' usable). This helper turns those preconditions into a human-readable
+#' message so callers such as the Shiny app can show something friendly
+#' instead of an error.
+#'
+#' @param q50 Numeric. Time (months) at which 50% of visas are processed.
+#' @param q90 Numeric. Time (months) at which 90% of visas are processed.
+#'
+#' @return \code{NULL} when the pair is valid, otherwise a single character
+#'   string describing the problem (suitable for \code{shiny::need()}).
+#' @export
+quantile_problem <- function(q50, q90) {
+  if (!is.numeric(q50) || !is.numeric(q90) ||
+      length(q50) != 1 || length(q90) != 1 ||
+      !is.finite(q50) || !is.finite(q90)) {
+    return("Enter both a 50% and a 90% processing time.")
+  }
+  
+  if (q50 <= 0 || q90 <= 0) {
+    return("Processing times must be greater than 0 months.")
+  }
+  
+  if (q90 <= q50) {
+    return(paste0("The 90% figure must be larger than the 50% figure ",
+                  "(got ", q90, " and ", q50, " months) ",
+                  "- a distribution cannot have its 90th percentile at or ",
+                  "below its median."))
+  }
+  
+  NULL
 }
 
 #' CDF of processing time for a log-normal model
