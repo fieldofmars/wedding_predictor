@@ -148,6 +148,37 @@ test_that("Monte Carlo results are dropped when inputs go invalid", {
   })
 })
 
+test_that("make_app_emailer() builds an emailer only when credentials exist", {
+  # Missing either half -> NULL, which is what switches login_server() back to
+  # its no-email mode (immediate sign-up, reset panel says not configured).
+  expect_null(make_app_emailer(username = "", password = ""))
+  expect_null(make_app_emailer(username = "a@example.com", password = ""))
+  expect_null(make_app_emailer(username = "", password = "secret"))
+
+  emailer <- make_app_emailer(username = "a@example.com", password = "secret")
+  expect_true(is.function(emailer))
+  # Signature login_server() calls: emailer(to_email =, subject =, message =)
+  expect_named(formals(emailer), c("to_email", "subject", "message"))
+
+  # The settings reach the underlying emayili server object (read from the
+  # closure's environment rather than by sending a real email).
+  env <- environment(emailer)
+  expect_equal(env$email_host, "smtp.gmail.com")
+  expect_equal(env$email_port, 465L)
+  expect_equal(env$email_username, "a@example.com")
+  expect_equal(env$from_email, "a@example.com")
+
+  overridden <- make_app_emailer(username = "a@example.com", password = "secret",
+                                 host = "mail.example.com", port = 587)
+  expect_equal(environment(overridden)$email_host, "mail.example.com")
+  expect_equal(environment(overridden)$email_port, 587L)
+})
+
+test_that("the app's emailer tracks GMAIL_USER / GMAIL_PASS", {
+  configured <- nzchar(Sys.getenv("GMAIL_USER")) && nzchar(Sys.getenv("GMAIL_PASS"))
+  expect_identical(!is.null(app_emailer), configured)
+})
+
 # global.R opened a connection for this test process only; the running app has
 # its own.
 if (exists("db_conn", inherits = FALSE) && DBI::dbIsValid(db_conn)) {

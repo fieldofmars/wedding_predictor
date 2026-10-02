@@ -23,9 +23,22 @@ shinyUI(
       }
       .bslib-card > .card-body { padding: 1rem; }
       .bslib-card .form-control { border-radius: 0.375rem; }
+      #login_screen .bslib-card { margin-bottom: 16px; }
+      #login_screen .shiny-panel { min-height: 1px; }
     "))),
-    div(style = "max-width: 420px; margin: 40px auto;",
-      login_ui(id = "login")
+    # Sign-in, sign-up and password-reset panels. All three are built by the
+    # `login` package on the server (they share one enclosing_panel -> our
+    # login_card), and server.R hides this whole block once the user is in.
+    div(
+      id = "login_screen",
+      style = "max-width: 900px; margin: 40px auto;",
+      fluidRow(
+        column(6, login_ui(id = "login")),
+        column(6, new_user_ui(id = "login"))
+      ),
+      fluidRow(
+        column(12, reset_password_ui(id = "login"))
+      )
     ),
     div(
       id = "main_app",
