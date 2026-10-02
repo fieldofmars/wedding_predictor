@@ -25,12 +25,18 @@ shinyServer(function(input, output, session) {
   
   # ── Reactives ───────────────────────────────────────────
   
+  # What (if anything) is wrong with the two quantile inputs right now.
+  # NULL means the pair can define a log-normal distribution.
+  input_problem <- reactive({
+    quantile_problem(input$q50, input$q90)
+  })
+
   dist_params <- reactive({
     # Reject an impossible pair (q90 <= q50, or a missing/non-positive value)
     # with a plain-English message instead of letting
     # fit_lognormal_from_quantiles() trip its stopifnot(). validate() renders
     # the message in outputs and halts dependants silently, like req().
-    problem <- quantile_problem(input$q50, input$q90)
+    problem <- input_problem()
     validate(need(is.null(problem), problem))
 
     fit_lognormal_from_quantiles(q50 = input$q50,
@@ -362,11 +368,38 @@ shinyServer(function(input, output, session) {
   mc_summary <- reactiveVal(NULL)
   mc_closed_form <- reactiveVal(NULL)
   
-  # Flag for conditionalPanel
+  # Flag for conditionalPanel. Only advertise results while the current inputs
+  # are valid, so the tab can never show a simulation that belongs to an input
+  # state the app now rejects.
   output$mc_has_results <- reactive({
-    !is.null(mc_results())
+    is.null(input_problem()) && !is.null(mc_results())
   })
   outputOptions(output, "mc_has_results", suspendWhenHidden = FALSE)
+
+  # Validation banner for the Monte Carlo tab. Appears as soon as the inputs
+  # go bad - even when no simulation has ever run - so the tab reflects the
+  # current input state rather than the last successful run.
+  output$mc_input_problem <- renderUI({
+    problem <- input_problem()
+    if (is.null(problem)) return(NULL)
+
+    tags$div(
+      class = "alert alert-warning",
+      style = "margin: 16px 0; padding: 12px 16px; border-radius: 6px;",
+      tags$strong("Cannot run a simulation: "),
+      problem
+    )
+  })
+
+  # Throw away a saved simulation as soon as the inputs become invalid, so
+  # fixing the inputs does not resurrect results computed under old ones.
+  observe({
+    if (!is.null(input_problem())) {
+      mc_results(NULL)
+      mc_summary(NULL)
+      mc_closed_form(NULL)
+    }
+  })
   
   # Run simulation on button click
   observeEvent(input$mc_run, {

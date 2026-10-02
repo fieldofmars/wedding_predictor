@@ -185,7 +185,8 @@ It is a conventional multi-file Shiny app: Shiny looks for `global.R`, `ui.R` an
 | [ui.R](ui.R) | The static page layout: the login box, the sidebar of inputs, and the three tabs (Results / Monte Carlo / Show Working). Pure HTML-generating R code; no calculations. |
 | [server.R](server.R) | All the reactive logic and rendering: slider↔date synchronisation, the risk panel, the two Results plots, the whole Monte Carlo tab, and the "Show Working" text. This is the biggest file (~1,000 lines). |
 | [R/functions.R](R/functions.R) | **All pure business logic**, with roxygen-style documentation: `fit_lognormal_from_quantiles()`, `visa_cdf()`, `visa_pdf()`, `scenario_analysis()`, `find_optimal_d1()`, `metrics_grid()`, `run_monte_carlo()`, `summarise_monte_carlo()`. No Shiny code here — which is what makes it unit-testable. |
-| [tests/testthat/test_functions.R](tests/testthat/test_functions.R) | 26 `testthat` assertions covering the functions above. |
+| [tests/testthat/test_functions.R](tests/testthat/test_functions.R) | 26 `test_that()` blocks covering the pure functions above (82 expectations). |
+| [tests/testthat/test_server.R](tests/testthat/test_server.R) | Server-level tests: drives the real `server.R` through `shiny::testServer()` and checks that invalid quantiles surface as the friendly message (20 expectations). |
 | [seed_user.R](seed_user.R) | Standalone script that creates (or refreshes) one test account — `test@example.com` / `test` — leaving all other users untouched. |
 | [shiny_run.ps1](shiny_run.ps1) | Windows PowerShell launcher: sets the library path and starts the app on port 8100. |
 | [users.sqlite](users.sqlite) | The login database (`users` + `users_activity` tables). **Git-ignored** (`*.sqlite` in [.gitignore](.gitignore)) — it will not be present on a fresh clone. |
@@ -438,8 +439,10 @@ the app once** (the tables are then created empty).
 
 ## 6. Running the tests
 
-The suite lives in [tests/testthat/test_functions.R](tests/testthat/test_functions.R)
-(26 tests) and covers:
+The suite lives in two files under `tests/testthat/`:
+
+**[test_functions.R](tests/testthat/test_functions.R)** (26 tests, 82 expectations)
+checks the pure business logic in `R/functions.R`:
 
 * `fit_lognormal_from_quantiles()` — valid, positive `sigma`;
 * `visa_cdf()` — bounded in `[0,1]`, equals 0.5 at `q50` and 0.9 at `q90`;
@@ -451,26 +454,49 @@ The suite lives in [tests/testthat/test_functions.R](tests/testthat/test_functio
 * `run_monte_carlo()` — output structure, correct scenario classification, costs match
   scenarios, identical results for an identical seed, and convergence to the closed form
   at 50,000 runs;
-* `summarise_monte_carlo()` — structure, counts sum to `n_sims`, CIs are ordered.
+* `summarise_monte_carlo()` — structure, counts sum to `n_sims`, CIs are ordered;
+* `quantile_problem()` — every rejected pair (`q90 < q50`, `q90 == q50`,
+  non-positive, missing, `Inf`) and the accepted ones.
+
+**[test_server.R](tests/testthat/test_server.R)** (20 expectations) covers the Shiny
+wiring those helper tests cannot: it sources `global.R` and `server.R`, then drives the
+real server function with `shiny::testServer()` and asserts that
+
+* `dist_params()` refuses `q90 <= q50` with a `shiny.silent.error` whose message is the
+  friendly text the outputs render, and still fits a valid pair;
+* the Results panel (`output$risk_assessment`) and the Monte Carlo banner
+  (`output$mc_input_problem`) actually display that message, and stay quiet for a valid
+  pair;
+* a cached Monte Carlo run is dropped (not left on screen) the moment the inputs go
+  invalid, and is not resurrected when they are fixed.
+
+Two setup details are baked into that file, both worth knowing if you copy the pattern:
+`cookies::get_cookie()` is stubbed because `login_server()` polls it on every flush and it
+does not work under a mock session, and the date inputs are passed as `Date` objects
+because that is what Shiny hands `server.R`, which feeds them into `seq(by = "1 month")`.
 
 **There is no `DESCRIPTION` file and no `tests/testthat.R` runner**, so
-`devtools::test()` / `R CMD check` will not work as-is. The tests also assume the
-functions are already in the search path (they call `fit_lognormal_from_quantiles()`
-directly, and the functions use `%>%`, `tibble()` and `case_when()`).
+`devtools::test()` / `R CMD check` will not work as-is. `test_functions.R` also assumes the
+functions are already in the search path (it calls `fit_lognormal_from_quantiles()`
+directly, and the functions use `%>%`, `tibble()` and `case_when()`); `test_server.R`
+loads the app itself.
 
-Run them from the project root with:
+Run everything from the project root with:
 
 ```r
 library(tidyverse)      # provides %>%, tibble, dplyr used inside R/functions.R
 library(testthat)
 source("R/functions.R")
 
-test_file("tests/testthat/test_functions.R")
-# or: test_dir("tests/testthat")
+test_dir("tests/testthat")    # both files: 102 expectations
+# or a single file:
+# test_file("tests/testthat/test_functions.R")
+# test_file("tests/testthat/test_server.R")
 ```
 
-The file still uses the legacy `context("...")` helper; it works, but it is deprecated in
-testthat 3rd edition and would be the first thing to remove if you modernise the tests.
+The logic file still uses the legacy `context("...")` helper; it works, but it is
+deprecated in testthat 3rd edition and would be the first thing to remove if you modernise
+the tests.
 
 ---
 
@@ -546,6 +572,14 @@ Ordered roughly by how likely they are to bite you.
    `stopifnot()` as a backstop for non-Shiny callers. **Follow the same pattern for any
    new input** — add a `*_problem()` helper, a `validate()` in the reactive that first
    reads it, and tests.
+   The Monte Carlo tab is wired to the same check rather than only to the last successful
+   run: `input_problem()` is a shared reactive, `output$mc_input_problem` renders a
+   "Cannot run a simulation" banner the moment the pair goes bad (even before any run has
+   ever happened), `output$mc_has_results` is gated on `is.null(input_problem())` so the
+   `conditionalPanel` never shows a previous simulation against inputs the app now
+   rejects, and an `observe()` clears the three cached MC `reactiveVal`s so fixing the
+   inputs cannot resurrect stale results — the tab goes back to its empty "Run Simulation"
+   state instead.
 
 4. **Two different definitions of "a month".**
    Date → months uses `days / 30.4375`; months → date uses `seq(..., by = "1 month")` and
@@ -602,6 +636,7 @@ Ordered roughly by how likely they are to bite you.
 | Add a new input | Add the control in [ui.R](ui.R), fold it into `summary_data()` in [server.R](server.R), and let existing outputs read it from there. |
 | Add a new output/tab | A `tabPanel(...)` in [ui.R](ui.R) plus a matching `output$...` in [server.R](server.R). |
 | Change or extend the maths | [R/functions.R](R/functions.R) first (keep it Shiny-free), then add tests in [tests/testthat/test_functions.R](tests/testthat/test_functions.R). |
+| Change input validation or its wiring | `quantile_problem()` in [R/functions.R](R/functions.R) plus the `validate()` call in `dist_params()` in [server.R](server.R), then extend [tests/testthat/test_server.R](tests/testthat/test_server.R) so the rendered message is covered too. |
 | Rebrand the app | `titlePanel(...)` in [ui.R](ui.R) and the `subtitle`/`title` strings in the ggplot `labs()` calls. |
 | Add email verification / password reset | Pass an `emailer` function to `login_server()` (see `emayili_emailer()` in the package vignette) — `verify_email` then turns on automatically. |
 | Add self-service signup | Render `new_user_ui(id = "login")` in [ui.R](ui.R). |
@@ -610,7 +645,7 @@ Ordered roughly by how likely they are to bite you.
 
 ```r
 shiny::runApp(".", port = 8100)                       # run the app
-testthat::test_file("tests/testthat/test_functions.R") # tests (after sourcing R/functions.R)
+testthat::test_dir("tests/testthat")          # both test files (102 expectations)
 ?login::login_server                                   # auth package reference
 sessionInfo()                                          # report versions when filing a bug
 ```
