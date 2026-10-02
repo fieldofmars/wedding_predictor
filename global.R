@@ -1,4 +1,3 @@
-## global.R
 library(pacman)
 p_load(shiny)
 p_load(tidyverse)
@@ -7,6 +6,26 @@ p_load(shinyjs)
 p_load(DBI)
 p_load(RSQLite)
 p_load(bslib)
+p_load(bsicons)
+p_load(thematic)
+p_load(fontawesome)
+p_load(scales)
+
+# Modern Luxury Wedding Theme
+wedding_theme <- bslib::bs_theme(
+  version = 5,
+  primary = "#8B263E",       # Romantic Deep Rose / Burgundy
+  secondary = "#D4AF37",     # Champagne Gold
+  success = "#0D9488",       # Emerald Teal
+  warning = "#D97706",       # Warm Amber
+  danger = "#E11D48",        # Crimson Rose
+  info = "#3B82F6",          # Royal Blue
+  base_font = bslib::font_google("Plus Jakarta Sans"),
+  heading_font = bslib::font_google("Playfair Display"),
+  code_font = bslib::font_google("JetBrains Mono"),
+  bg = "#FAF8F5",            # Warm Ivory / Pearl
+  fg = "#1F2937"             # Charcoal Slate
+)
 
 # The `login` package builds its boxes on the server and wraps them in
 # `enclosing_panel` (its default is shiny::wellPanel()). We hand it a bslib
@@ -21,6 +40,7 @@ p_load(bslib)
 # the buttons are present in every state.
 login_card <- function(...) {
   bslib::card(
+    class = "bslib-card wedding-card shadow-sm mb-3",
     bslib::card_header(panel_title(list(...))),
     do.call(bslib::card_body, list(...))
   )

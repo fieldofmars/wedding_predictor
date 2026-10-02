@@ -1,0 +1,645 @@
+/* ==========================================================================
+   THE WEDDING PREDICTOR - LUXURY WEDDING PALETTE & DESIGN SYSTEM
+   ========================================================================== */
+
+/* Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,400;1,600&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+:root {
+  --wedding-primary: #8B263E;       /* Deep romantic rose / burgundy */
+  --wedding-primary-light: #A43450;
+  --wedding-primary-dark: #6C1B2E;
+  --wedding-gold: #D4AF37;          /* Classic champagne gold */
+  --wedding-gold-light: #F3E5AB;
+  --wedding-gold-dark: #AA820A;
+  --wedding-bg: #FAF8F5;            /* Warm ivory / pearl */
+  --wedding-card-bg: #FFFFFF;
+  --wedding-text: #1F2937;
+  --wedding-text-muted: #64748B;
+  --wedding-border: rgba(212, 175, 55, 0.22);
+  --wedding-border-subtle: #E2E8F0;
+  --wedding-shadow-sm: 0 2px 8px rgba(139, 38, 62, 0.04);
+  --wedding-shadow-md: 0 10px 25px -5px rgba(139, 38, 62, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.03);
+  --wedding-shadow-lg: 0 20px 35px -8px rgba(139, 38, 62, 0.12), 0 10px 15px -5px rgba(0, 0, 0, 0.04);
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+}
+
+body {
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+  background-color: var(--wedding-bg) !important;
+  background-image: 
+    radial-gradient(circle at 10% 15%, rgba(212, 175, 55, 0.07) 0%, transparent 35%),
+    radial-gradient(circle at 90% 25%, rgba(139, 38, 62, 0.05) 0%, transparent 40%),
+    radial-gradient(circle at 50% 85%, rgba(212, 175, 55, 0.05) 0%, transparent 45%) !important;
+  background-attachment: fixed !important;
+  color: var(--wedding-text) !important;
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+}
+
+h1, h2, h3, h4, .brand-title, .wedding-serif {
+  font-family: 'Playfair Display', Georgia, serif !important;
+  color: var(--wedding-primary);
+  letter-spacing: -0.01em;
+}
+
+/* --------------------------------------------------------------------------
+   TOP LUXURY BRAND NAVBAR
+   -------------------------------------------------------------------------- */
+.wedding-navbar {
+  background: rgba(255, 255, 255, 0.94) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  border-bottom: 1px solid var(--wedding-border) !important;
+  box-shadow: 0 4px 20px rgba(139, 38, 62, 0.05) !important;
+  padding: 14px 28px !important;
+  margin-bottom: 24px !important;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  position: sticky;
+  top: 0;
+  z-index: 1030;
+}
+
+.wedding-brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  text-decoration: none !important;
+}
+
+.wedding-logo-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #8B263E 0%, #A43450 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #D4AF37;
+  font-size: 22px;
+  box-shadow: 0 4px 12px rgba(139, 38, 62, 0.25);
+  border: 1px solid rgba(212, 175, 55, 0.4);
+}
+
+.wedding-brand-text h1 {
+  font-size: 1.5rem !important;
+  margin: 0 !important;
+  line-height: 1.15 !important;
+  font-weight: 700 !important;
+  color: var(--wedding-primary) !important;
+}
+
+.wedding-brand-text .brand-tagline {
+  font-size: 0.8rem;
+  color: var(--wedding-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.wedding-nav-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.wedding-meta-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #FAF8F5;
+  border: 1px solid var(--wedding-border);
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  color: #4A5568;
+  font-weight: 500;
+}
+
+.wedding-meta-pill strong {
+  color: var(--wedding-primary);
+}
+
+/* --------------------------------------------------------------------------
+   LOGIN SCREEN HERO & CARDS
+   -------------------------------------------------------------------------- */
+#login_screen {
+  max-width: 960px !important;
+  margin: 50px auto !important;
+  padding: 0 20px;
+}
+
+.login-hero {
+  text-align: center;
+  margin-bottom: 36px;
+  position: relative;
+}
+
+.login-hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(212, 175, 55, 0.12);
+  color: #8C6A08;
+  border: 1px solid rgba(212, 175, 55, 0.35);
+  padding: 6px 16px;
+  border-radius: 30px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin-bottom: 14px;
+}
+
+.login-hero h1 {
+  font-size: 2.5rem !important;
+  margin-bottom: 8px !important;
+  font-weight: 700 !important;
+  color: var(--wedding-primary) !important;
+}
+
+.login-hero p {
+  font-size: 1.1rem;
+  color: var(--wedding-text-muted);
+  max-width: 580px;
+  margin: 0 auto;
+  line-height: 1.5;
+}
+
+/* Card Styling for login & whole app */
+.bslib-card, .wedding-card {
+  background: var(--wedding-card-bg) !important;
+  border: 1px solid var(--wedding-border) !important;
+  border-radius: var(--radius-lg) !important;
+  box-shadow: var(--wedding-shadow-md) !important;
+  overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.bslib-card:hover, .wedding-card:hover {
+  box-shadow: var(--wedding-shadow-lg) !important;
+}
+
+.bslib-card > .card-header, .wedding-card > .card-header {
+  background: linear-gradient(180deg, #FFFFFF 0%, #FCFBF9 100%) !important;
+  border-bottom: 1px solid var(--wedding-border) !important;
+  padding: 16px 22px !important;
+  font-family: 'Playfair Display', serif !important;
+  font-size: 1.15rem !important;
+  font-weight: 700 !important;
+  color: var(--wedding-primary) !important;
+}
+
+.bslib-card > .card-body {
+  padding: 24px !important;
+}
+
+#login_screen .bslib-card {
+  margin-bottom: 24px;
+}
+
+#login_screen .form-control {
+  border-radius: var(--radius-sm) !important;
+  border: 1.5px solid #E2E8F0 !important;
+  padding: 10px 14px !important;
+  font-size: 0.95rem !important;
+  transition: all 0.2s ease !important;
+}
+
+#login_screen .form-control:focus {
+  border-color: var(--wedding-primary) !important;
+  box-shadow: 0 0 0 3px rgba(139, 38, 62, 0.15) !important;
+  outline: none !important;
+}
+
+/* Login Action Buttons */
+#login_screen .btn, .btn-wedding-primary {
+  background: linear-gradient(135deg, #8B263E 0%, #A43450 100%) !important;
+  border: none !important;
+  color: #FFFFFF !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.3px !important;
+  border-radius: 10px !important;
+  padding: 10px 20px !important;
+  box-shadow: 0 4px 14px rgba(139, 38, 62, 0.25) !important;
+  transition: all 0.2s ease !important;
+  width: 100%;
+}
+
+#login_screen .btn:hover, .btn-wedding-primary:hover {
+  background: linear-gradient(135deg, #781E33 0%, #8E2941 100%) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 6px 18px rgba(139, 38, 62, 0.35) !important;
+}
+
+/* --------------------------------------------------------------------------
+   SIDEBAR STYLING
+   -------------------------------------------------------------------------- */
+.wedding-sidebar {
+  background: #FFFFFF !important;
+  border: 1px solid var(--wedding-border) !important;
+  border-radius: var(--radius-lg) !important;
+  padding: 24px !important;
+  box-shadow: var(--wedding-shadow-md) !important;
+  margin-bottom: 24px;
+}
+
+.sidebar-section-title {
+  font-family: 'Playfair Display', serif !important;
+  font-size: 1.1rem !important;
+  font-weight: 700 !important;
+  color: var(--wedding-primary) !important;
+  margin: 18px 0 12px 0 !important;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid rgba(212, 175, 55, 0.2);
+  padding-bottom: 6px;
+}
+
+.sidebar-section-title:first-of-type {
+  margin-top: 0 !important;
+}
+
+.wedding-sidebar .form-control {
+  border-radius: var(--radius-sm) !important;
+  border: 1px solid var(--wedding-border-subtle) !important;
+  padding: 8px 12px !important;
+  font-size: 0.92rem !important;
+}
+
+.wedding-sidebar .form-control:focus {
+  border-color: var(--wedding-primary) !important;
+  box-shadow: 0 0 0 3px rgba(139, 38, 62, 0.12) !important;
+}
+
+.wedding-sidebar .help-block {
+  color: var(--wedding-text-muted) !important;
+  font-size: 0.82rem !important;
+  line-height: 1.45 !important;
+  margin-top: 5px !important;
+}
+
+/* --------------------------------------------------------------------------
+   TABS STYLING
+   -------------------------------------------------------------------------- */
+.nav-tabs {
+  border-bottom: 2px solid var(--wedding-border) !important;
+  margin-bottom: 24px !important;
+  gap: 8px;
+}
+
+.nav-tabs > li > a {
+  font-family: 'Plus Jakarta Sans', sans-serif !important;
+  font-weight: 600 !important;
+  font-size: 0.98rem !important;
+  color: var(--wedding-text-muted) !important;
+  border: 1px solid transparent !important;
+  border-radius: 12px 12px 0 0 !important;
+  padding: 12px 22px !important;
+  transition: all 0.2s ease !important;
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+}
+
+.nav-tabs > li > a:hover {
+  background: rgba(212, 175, 55, 0.08) !important;
+  color: var(--wedding-primary) !important;
+}
+
+.nav-tabs > li.active > a,
+.nav-tabs > li.active > a:focus,
+.nav-tabs > li.active > a:hover {
+  color: var(--wedding-primary) !important;
+  background-color: #FFFFFF !important;
+  border: 2px solid var(--wedding-border) !important;
+  border-bottom-color: #FFFFFF !important;
+  box-shadow: 0 -4px 12px rgba(139, 38, 62, 0.04);
+}
+
+/* --------------------------------------------------------------------------
+   VALUE BOXES / KPI STAT CARDS
+   -------------------------------------------------------------------------- */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+@media (min-width: 1200px) {
+  .kpi-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.kpi-card {
+  background: #FFFFFF;
+  border: 1px solid var(--wedding-border);
+  border-radius: var(--radius-md);
+  padding: 18px 20px;
+  box-shadow: var(--wedding-shadow-sm);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.kpi-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #D4AF37 0%, #8B263E 100%);
+}
+
+.kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--wedding-shadow-md);
+}
+
+.kpi-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--wedding-text-muted);
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.kpi-value {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--wedding-primary);
+  line-height: 1.15;
+  margin-bottom: 4px;
+}
+
+.kpi-subtext {
+  font-size: 0.84rem;
+  color: var(--wedding-text-muted);
+}
+
+/* --------------------------------------------------------------------------
+   RISK ASSESSMENT CARD & BANNER
+   -------------------------------------------------------------------------- */
+.risk-banner-card {
+  border-radius: var(--radius-md);
+  padding: 20px 24px;
+  color: #FFFFFF;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.risk-banner-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.risk-banner-pill {
+  background: rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(4px);
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.risk-details-card {
+  background: #FFFFFF;
+  border: 1px solid var(--wedding-border);
+  border-radius: var(--radius-md);
+  padding: 24px;
+  box-shadow: var(--wedding-shadow-sm);
+  margin-bottom: 28px;
+}
+
+/* Scenario table */
+.wedding-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  margin-top: 14px;
+}
+
+.wedding-table th {
+  background: #FCFBF9;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--wedding-text-muted);
+  padding: 12px 16px;
+  border-bottom: 2px solid var(--wedding-border);
+}
+
+.wedding-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid #F1F5F9;
+  font-size: 0.95rem;
+  vertical-align: middle;
+}
+
+.wedding-table tbody tr:hover td {
+  background-color: rgba(212, 175, 55, 0.04);
+}
+
+.wedding-table tfoot td {
+  background: #FCFBF9;
+  font-weight: 700;
+  padding: 14px 16px;
+  border-top: 2px solid var(--wedding-border);
+  font-size: 1.05rem;
+}
+
+/* Badges */
+.scenario-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.badge-on-time {
+  background: rgba(16, 185, 129, 0.12);
+  color: #065F46;
+}
+
+.badge-resched {
+  background: rgba(245, 158, 11, 0.12);
+  color: #92400E;
+}
+
+.badge-expired {
+  background: rgba(239, 68, 68, 0.12);
+  color: #991B1B;
+}
+
+/* --------------------------------------------------------------------------
+   PLOT CONTAINERS
+   -------------------------------------------------------------------------- */
+.plot-card {
+  background: #FFFFFF;
+  border: 1px solid var(--wedding-border);
+  border-radius: var(--radius-md);
+  padding: 20px;
+  box-shadow: var(--wedding-shadow-sm);
+  margin-bottom: 28px;
+}
+
+.plot-card-header {
+  margin-bottom: 14px;
+}
+
+.plot-card-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--wedding-primary);
+  margin: 0 0 4px 0;
+}
+
+.plot-card-desc {
+  font-size: 0.88rem;
+  color: var(--wedding-text-muted);
+  margin: 0;
+}
+
+/* --------------------------------------------------------------------------
+   MONTE CARLO TAB
+   -------------------------------------------------------------------------- */
+.mc-hero-box {
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.08) 0%, rgba(139, 38, 62, 0.05) 100%);
+  border: 1px solid var(--wedding-border);
+  border-radius: var(--radius-md);
+  padding: 20px 24px;
+  margin-bottom: 24px;
+}
+
+.btn-mc-run {
+  background: linear-gradient(135deg, #8B263E 0%, #B84762 100%) !important;
+  color: #FFFFFF !important;
+  font-weight: 700 !important;
+  border-radius: 12px !important;
+  padding: 12px 24px !important;
+  border: none !important;
+  box-shadow: 0 6px 18px rgba(139, 38, 62, 0.3) !important;
+  transition: all 0.2s ease !important;
+  font-size: 1.05rem !important;
+}
+
+.btn-mc-run:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 8px 24px rgba(139, 38, 62, 0.42) !important;
+}
+
+/* --------------------------------------------------------------------------
+   SHOW WORKING ACCORDION & DERIVATIONS
+   -------------------------------------------------------------------------- */
+.working-card {
+  background: #FFFFFF;
+  border: 1px solid var(--wedding-border);
+  border-radius: var(--radius-md);
+  margin-bottom: 20px;
+  overflow: hidden;
+  box-shadow: var(--wedding-shadow-sm);
+}
+
+.working-card-header {
+  background: #FCFBF9;
+  border-bottom: 1px solid var(--wedding-border);
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.step-number-badge {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--wedding-primary);
+  color: #FFFFFF;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.working-card-header h3 {
+  font-size: 1.15rem !important;
+  margin: 0 !important;
+}
+
+.working-card-body {
+  padding: 20px;
+}
+
+pre {
+  background: #F8FAFC !important;
+  border: 1px solid #E2E8F0 !important;
+  border-radius: 10px !important;
+  padding: 14px 18px !important;
+  font-family: 'JetBrains Mono', monospace !important;
+  font-size: 0.88rem !important;
+  color: #334155 !important;
+  line-height: 1.6 !important;
+}
+
+/* --------------------------------------------------------------------------
+   LOGOUT BUTTON
+   -------------------------------------------------------------------------- */
+.wedding-logout-wrap .btn,
+.wedding-logout-wrap button,
+.btn-logout {
+  background: #FFFFFF !important;
+  border: 1px solid var(--wedding-border) !important;
+  color: var(--wedding-primary) !important;
+  border-radius: 10px !important;
+  font-weight: 600 !important;
+  font-size: 0.88rem !important;
+  padding: 8px 16px !important;
+  box-shadow: var(--wedding-shadow-sm) !important;
+  transition: all 0.2s ease !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+
+.wedding-logout-wrap .btn:hover,
+.wedding-logout-wrap button:hover,
+.btn-logout:hover {
+  background: var(--wedding-primary) !important;
+  color: #FFFFFF !important;
+  border-color: var(--wedding-primary) !important;
+  box-shadow: 0 4px 12px rgba(139, 38, 62, 0.25) !important;
+  transform: translateY(-1px) !important;
+}
