@@ -7,12 +7,7 @@ shinyUI(
     tags$head(
       tags$title("The Wedding Predictor | Visa & Ceremony Scheduling Planner"),
       tags$meta(name = "description", content = "Stochastic visa wait time modelling, risk optimization, and wedding ceremony scheduling planner."),
-      tags$link(rel = "stylesheet", type = "text/css", href = "custom.css"),
-      local({
-        candidates <- c("www/custom.css", "../../www/custom.css", "../www/custom.css")
-        hit <- candidates[file.exists(candidates)][1]
-        if (!is.na(hit)) includeCSS(hit) else NULL
-      })
+      tags$link(rel = "stylesheet", type = "text/css", href = "custom.css")
     ),
     
     # ── Login Screen ──────────────────────────────────────────
